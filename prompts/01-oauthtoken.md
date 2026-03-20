@@ -1,0 +1,1 @@
+we need to have access to an OAUTH token to access an API. it should be possible to be passed in either as an environment variable "MIRO_OAUTH_TOKEN", or as a command line argument. if both are present, the command line takes precedence. use standard typescript and node technique/libraries to achieve this.
