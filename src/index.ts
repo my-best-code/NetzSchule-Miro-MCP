@@ -337,7 +337,7 @@ server.registerTool(
 server.registerTool(
   "get_board_access",
   {
-    description: "Get board access information: sharing policy, permissions policy, and list of members with their roles",
+    description: "Get board access information: sharing policy (API-level settings), permissions policy, and list of members with their roles. Note: the 'inviteToAccountAndBoardLinkAccess' field reflects the API-level link access setting, which may differ from the share link configured in Miro UI (share links with share_link_id are a UI-only feature not exposed by the Miro API).",
     inputSchema: {
       boardId: z.string().describe("ID of the board to get access information for"),
     },
@@ -356,7 +356,10 @@ server.registerTool(
       if (sp.access) lines.push(`  Access: ${sp.access}`);
       if (sp.teamAccess) lines.push(`  Team access: ${sp.teamAccess}`);
       if (sp.organizationAccess) lines.push(`  Organization access: ${sp.organizationAccess}`);
-      if (sp.inviteToAccountAndBoardLinkAccess) lines.push(`  Link access: ${sp.inviteToAccountAndBoardLinkAccess}`);
+      lines.push(`  Link access (API-level): ${sp.inviteToAccountAndBoardLinkAccess ?? 'no_access'}`);
+      if (sp.inviteToAccountAndBoardLinkAccess === 'no_access' || !sp.inviteToAccountAndBoardLinkAccess) {
+        lines.push('    Note: This reflects the API-level setting. The board may still have a UI-generated share link (with share_link_id) that grants access independently. Miro API does not expose UI share links.');
+      }
     }
 
     if (boardDetails.permissionsPolicy) {
@@ -382,7 +385,7 @@ server.registerTool(
 server.registerTool(
   "update_board_sharing",
   {
-    description: "Update board sharing policy: configure team access level and link access permissions",
+    description: "Update board sharing policy via Miro API: configure access, team access, and organization access levels. Note: inviteToAccountAndBoardLinkAccess may be restricted by organization settings. UI-generated share links (with share_link_id) cannot be created or modified via the API.",
     inputSchema: {
       boardId: z.string().describe("ID of the board to update sharing settings for"),
       access: z.enum(["private", "view", "comment", "edit"]).optional()
@@ -392,7 +395,7 @@ server.registerTool(
       organizationAccess: z.enum(["private", "view", "comment", "edit"]).optional()
         .describe("Organization access level: private, view, comment, or edit"),
       inviteToAccountAndBoardLinkAccess: z.enum(["viewer", "commenter", "editor", "no_access"]).optional()
-        .describe("Access level for anyone with the board link"),
+        .describe("API-level access for anyone with the board link. May be restricted by organization settings. This does NOT control UI-generated share links (with share_link_id)."),
     },
   },
   async ({ boardId, access, teamAccess, organizationAccess, inviteToAccountAndBoardLinkAccess }) => {
@@ -419,14 +422,15 @@ server.registerTool(
     if (sp?.access) lines.push(`  Access: ${sp.access}`);
     if (sp?.teamAccess) lines.push(`  Team access: ${sp.teamAccess}`);
     if (sp?.organizationAccess) lines.push(`  Organization access: ${sp.organizationAccess}`);
-    lines.push(`  Link access: ${sp?.inviteToAccountAndBoardLinkAccess ?? 'no_access'}`);
+    lines.push(`  Link access (API-level): ${sp?.inviteToAccountAndBoardLinkAccess ?? 'no_access'}`);
 
     // Warn if requested link access didn't apply
     if (inviteToAccountAndBoardLinkAccess &&
         sp?.inviteToAccountAndBoardLinkAccess !== inviteToAccountAndBoardLinkAccess) {
-      lines.push('', `Warning: Link access was requested as "${inviteToAccountAndBoardLinkAccess}" but is still "${sp?.inviteToAccountAndBoardLinkAccess ?? 'no_access'}".`);
-      lines.push('This may be a limitation of your Miro plan or account settings.');
-      lines.push('Try changing this setting manually in Miro: Share > "Anyone with the link" > Editor');
+      lines.push('', `Warning: inviteToAccountAndBoardLinkAccess was requested as "${inviteToAccountAndBoardLinkAccess}" but is still "${sp?.inviteToAccountAndBoardLinkAccess ?? 'no_access'}".`);
+      lines.push('This is likely restricted by your organization settings.');
+      lines.push('Note: UI-generated share links (with share_link_id) are a separate mechanism not accessible via the Miro API.');
+      lines.push('To manage share links, use the Miro UI: Share > "Anyone with the link".');
     }
 
     return {
@@ -438,17 +442,29 @@ server.registerTool(
 server.registerTool(
   "get_board_share_link",
   {
-    description: "Get the shareable link for a Miro board",
+    description: "Get the board view link (direct URL). Note: this returns the board's viewLink from the API, NOT the UI-generated share link with share_link_id. Miro API does not support creating or retrieving UI share links. To get a share link with specific permissions, use the Miro UI: Share > Copy board link.",
     inputSchema: {
-      boardId: z.string().describe("ID of the board to get the share link for"),
+      boardId: z.string().describe("ID of the board to get the view link for"),
     },
   },
   async ({ boardId }) => {
     const boardDetails = await miroClient.getBoardDetails(boardId);
     const link = boardDetails.viewLink || `https://miro.com/app/board/${boardId}/`;
+    const linkAccess = boardDetails.sharingPolicy?.inviteToAccountAndBoardLinkAccess ?? 'no_access';
+
+    const lines = [
+      `Board view link for "${boardDetails.name}": ${link}`,
+      '',
+      `API-level link access: ${linkAccess}`,
+      '',
+      'Note: This is the board\'s direct URL (viewLink), not a UI-generated share link.',
+      'Miro UI share links (with ?share_link_id=...) grant access independently and',
+      'cannot be created or retrieved via the Miro API.',
+      'To generate a share link with specific permissions, use Miro UI: Share > Copy board link.',
+    ];
 
     return {
-      content: [{ type: "text", text: `Share link for "${boardDetails.name}": ${link}` }],
+      content: [{ type: "text", text: lines.join('\n') }],
     };
   }
 );

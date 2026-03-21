@@ -22,9 +22,9 @@ Based on [@llmindset/mcp-miro](https://github.com/evalstate/mcp-miro), with adde
 - **bulk_create_items** — up to 20 items in a single transaction
 - **get_frames** — get all frames from a board
 - **get_items_in_frame** — get items within a specific frame
-- **get_board_access** — view sharing policy, permissions policy, and list of board members with roles
-- **update_board_sharing** — configure board access: team access level, link access (`private`/`view`/`comment`/`edit`). Verifies changes with a follow-up GET and warns if the update was not applied (e.g. due to Miro plan limitations)
-- **get_board_share_link** — get the shareable link for a board
+- **get_board_access** — view sharing policy (API-level settings), permissions policy, and list of board members with roles
+- **update_board_sharing** — configure board access: access, team access, organization access levels. Verifies changes with a follow-up GET and warns if the update was not applied
+- **get_board_share_link** — get the board's direct view link (URL). See [Miro API Sharing Limitations](#miro-api-sharing-limitations) for details
 
 ### Prompts
 - **Working with MIRO** — board coordinate system and best practices
@@ -108,6 +108,28 @@ Or use environment variables:
   }
 }
 ```
+
+## Miro API Sharing Limitations
+
+The Miro REST API v2 has important limitations regarding board sharing that differ from the Miro UI:
+
+### Two different sharing mechanisms
+
+| Mechanism | API Support | Description |
+|-----------|-------------|-------------|
+| **`inviteToAccountAndBoardLinkAccess`** | ✅ Read/Write | API-level setting that controls global link access. May be restricted by organization settings (often locked to `no_access`). |
+| **UI share links** (`?share_link_id=...`) | ❌ Not supported | Share links generated in Miro UI (Share > Copy board link) with specific permissions. These are a UI-only feature — the Miro API cannot create, read, update, or delete them. |
+| **Board members** | ✅ Read/Write | Invite specific users by email via `POST /v2/boards/{board_id}/members`. |
+| **`viewLink`** | ✅ Read-only | Direct URL to the board (no embedded permissions). |
+
+### What this means in practice
+
+- **`get_board_share_link`** returns the board's `viewLink` (direct URL), **not** a UI-generated share link with `share_link_id`.
+- **`get_board_access`** shows `inviteToAccountAndBoardLinkAccess` which may show `no_access` even if the board has an active UI share link with Editor access. These are independent settings.
+- **`update_board_sharing`** can change `inviteToAccountAndBoardLinkAccess`, but this may be overridden or restricted by organization-level policies.
+- To create a share link with specific permissions, use the **Miro UI**: Share > "Anyone with the link" > select access level > Copy board link.
+
+> **Source**: [Miro Community — confirmed by Miro staff](https://community.miro.com/developer-platform-and-apis-57/how-to-get-the-share-board-link-of-a-web-whiteboard-programmatically-6031) that share link URLs with `share_link_id` are only supported by the Miro UI.
 
 ## CI/CD
 
