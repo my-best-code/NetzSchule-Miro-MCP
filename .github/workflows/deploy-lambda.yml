@@ -28,7 +28,7 @@ jobs:
 
       - uses: aws-actions/setup-sam@v2
 
-      - run: sam build --use-container=false
+      - run: sam build --no-use-container
       - run: |
           sam deploy \
             --stack-name miro-mcp-rest-api \
