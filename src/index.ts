@@ -8,6 +8,10 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import fs from 'fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(await fs.readFile(path.join(__dirname, '..', 'package.json'), 'utf-8'));
 
 // Parse command line arguments
 const argv = await yargs(hideBin(process.argv))
@@ -39,7 +43,7 @@ if (!oauthToken) {
 
 const server = new McpServer({
   name: "mcp-miro",
-  version: "0.2.0",
+  version: pkg.version,
 });
 
 const miroClient = new MiroClient(oauthToken);
