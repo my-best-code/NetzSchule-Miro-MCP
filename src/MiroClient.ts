@@ -45,6 +45,16 @@ interface MiroPermissionsPolicy {
   sharingAccess?: string;
 }
 
+interface MiroBoardDetailsRaw extends MiroBoard {
+  sharingPolicy?: MiroSharingPolicy;
+  permissionsPolicy?: MiroPermissionsPolicy;
+  policy?: {
+    sharingPolicy?: MiroSharingPolicy;
+    permissionsPolicy?: MiroPermissionsPolicy;
+  };
+  viewLink?: string;
+}
+
 interface MiroBoardDetails extends MiroBoard {
   sharingPolicy?: MiroSharingPolicy;
   permissionsPolicy?: MiroPermissionsPolicy;
@@ -181,7 +191,12 @@ export class MiroClient {
   }
 
   async getBoardDetails(boardId: string): Promise<MiroBoardDetails> {
-    return this.fetchApi(`/boards/${boardId}`) as Promise<MiroBoardDetails>;
+    const raw = await this.fetchApi(`/boards/${boardId}`) as MiroBoardDetailsRaw;
+    return {
+      ...raw,
+      sharingPolicy: raw.sharingPolicy ?? raw.policy?.sharingPolicy,
+      permissionsPolicy: raw.permissionsPolicy ?? raw.policy?.permissionsPolicy,
+    };
   }
 
   async getBoardMembers(boardId: string): Promise<MiroBoardMember[]> {
@@ -203,7 +218,7 @@ export class MiroClient {
   async updateBoardSharingPolicy(boardId: string, sharingPolicy: Partial<MiroSharingPolicy>): Promise<MiroBoardDetails> {
     return this.fetchApi(`/boards/${boardId}`, {
       method: 'PATCH',
-      body: { sharingPolicy }
+      body: { policy: { sharingPolicy } }
     }) as Promise<MiroBoardDetails>;
   }
 }

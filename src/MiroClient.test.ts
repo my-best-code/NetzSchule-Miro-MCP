@@ -301,6 +301,28 @@ describe('MiroClient', () => {
       expect(result.permissionsPolicy?.copyAccess).toBe('team_editors');
       expect(result.viewLink).toBe('https://miro.com/app/board/board-1/');
     });
+
+    it('normalizes policy wrapper from API response', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({
+        id: 'board-2',
+        name: 'Wrapped Board',
+        policy: {
+          sharingPolicy: {
+            access: 'edit',
+            inviteToAccountAndBoardLinkAccess: 'editor',
+          },
+          permissionsPolicy: {
+            copyAccess: 'anyone',
+          },
+        },
+      }));
+
+      const result = await client.getBoardDetails('board-2');
+
+      expect(result.sharingPolicy?.access).toBe('edit');
+      expect(result.sharingPolicy?.inviteToAccountAndBoardLinkAccess).toBe('editor');
+      expect(result.permissionsPolicy?.copyAccess).toBe('anyone');
+    });
   });
 
   describe('getBoardMembers', () => {
@@ -367,7 +389,7 @@ describe('MiroClient', () => {
       const options = mockFetch.mock.calls[0][1];
       expect(options.method).toBe('PATCH');
       const body = JSON.parse(options.body);
-      expect(body.sharingPolicy.teamAccess).toBe('edit');
+      expect(body.policy.sharingPolicy.teamAccess).toBe('edit');
       expect(result.sharingPolicy?.teamAccess).toBe('edit');
     });
   });
