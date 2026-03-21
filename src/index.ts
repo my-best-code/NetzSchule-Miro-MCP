@@ -226,7 +226,7 @@ server.registerTool(
   "bulk_create_items",
   {
     description:
-      "Create multiple items on a Miro board in a single transaction (max 20 items)",
+      "Create multiple items on a Miro board in a single transaction (max 20 items). Use fillColor (not color) for sticky note style. For rectangular stickies, set data.shape to 'rectangle'. Position uses x/y only (no origin/relativeTo). Use parent.id to place items inside a frame.",
     inputSchema: {
       boardId: z.string().describe("ID of the board to create the items on"),
       items: z.array(z.object({

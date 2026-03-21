@@ -260,19 +260,20 @@ describe('MiroClient', () => {
       const url = mockFetch.mock.calls[0][0] as string;
       expect(url).toBe('https://api.miro.com/v2/boards/board-1/items/bulk');
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body).toEqual({ data: items });
+      expect(body).toEqual(items);
       expect(result).toHaveLength(2);
     });
 
-    it('throws on API error with message', async () => {
+    it('throws on API error with details', async () => {
       mockFetch.mockResolvedValueOnce({
         ok: false,
+        status: 400,
         statusText: 'Bad Request',
-        json: () => Promise.resolve({ message: 'Invalid item type' }),
+        text: () => Promise.resolve('{"message":"Invalid item type","details":"missing required field"}'),
       });
 
       await expect(client.bulkCreateItems('board-1', []))
-        .rejects.toThrow('Invalid item type');
+        .rejects.toThrow('400 Bad Request');
     });
   });
 

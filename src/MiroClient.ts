@@ -161,16 +161,16 @@ export class MiroClient {
         'Authorization': `Bearer ${this.token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ data: items })
+      body: JSON.stringify(items)
     });
-    
+
     if (!response.ok) {
-      const error = await response.json() as { message?: string };
-      throw new Error(`Miro API error: ${error.message || response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`Miro API error: ${response.status} ${response.statusText} — ${errorText}`);
     }
 
-    const result = await response.json() as { data: MiroItem[] };
-    return result.data || [];
+    const result = await response.json() as { data?: MiroItem[] };
+    return result.data ?? (Array.isArray(result) ? result : []) as MiroItem[];
   }
 
   async getFrames(boardId: string): Promise<MiroItem[]> {
