@@ -1,6 +1,6 @@
 {
   "name": "@my-best-code/netzschule-miro-mcp",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "A Model Context Protocol server to connect to the MIRO Whiteboard Application. Supports board filtering by owner/team.",
   "author": "Dmitri Konnov (https://github.com/DmitriKonnovNN)",
   "license": "Apache-2.0",
