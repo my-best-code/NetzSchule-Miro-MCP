@@ -17,6 +17,7 @@ function jsonResponse(data: any, ok = true, status = 200) {
     status,
     statusText: ok ? 'OK' : 'Error',
     json: () => Promise.resolve(data),
+    text: () => Promise.resolve(JSON.stringify(data)),
   };
 }
 
@@ -38,7 +39,11 @@ describe('MiroClient', () => {
       const result = await client.getTokenContext();
 
       expect(mockFetch).toHaveBeenCalledWith('https://api.miro.com/v1/oauth-token', {
-        headers: { 'Authorization': 'Bearer test-token' },
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer test-token',
+          'Content-Type': 'application/json',
+        },
       });
       expect(result.user.id).toBe('user-1');
       expect(result.team.id).toBe('team-1');
@@ -47,7 +52,7 @@ describe('MiroClient', () => {
     it('throws on API error', async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({}, false, 401));
 
-      await expect(client.getTokenContext()).rejects.toThrow('Miro API error: 401');
+      await expect(client.getTokenContext()).rejects.toThrow('Miro API error: 401 Error');
     });
   });
 
@@ -273,7 +278,7 @@ describe('MiroClient', () => {
       });
 
       await expect(client.bulkCreateItems('board-1', []))
-        .rejects.toThrow('400 Bad Request');
+        .rejects.toThrow('Miro API error: 400 Bad Request');
     });
   });
 

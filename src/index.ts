@@ -2,7 +2,7 @@
 
 import yargs from "yargs/yargs";
 import { hideBin } from "yargs/helpers";
-import { MiroClient, type BoardFilterParams } from "./MiroClient.js";
+import { MiroClient, type BoardFilterParams, type MiroSharingPolicy } from "./MiroClient.js";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
@@ -100,6 +100,16 @@ server.registerResource(
     };
   }
 );
+
+function formatSharingPolicy(sp: MiroSharingPolicy | undefined): string[] {
+  if (!sp) return [];
+  const lines: string[] = [];
+  if (sp.access) lines.push(`  Access: ${sp.access}`);
+  if (sp.teamAccess) lines.push(`  Team access: ${sp.teamAccess}`);
+  if (sp.organizationAccess) lines.push(`  Organization access: ${sp.organizationAccess}`);
+  lines.push(`  Link access (API-level): ${sp.inviteToAccountAndBoardLinkAccess ?? 'no_access'}`);
+  return lines;
+}
 
 // --- Tools ---
 
@@ -421,13 +431,9 @@ server.registerTool(
     const lines: string[] = [`Board: ${boardDetails.name} (${boardDetails.id})`];
 
     if (boardDetails.sharingPolicy) {
-      const sp = boardDetails.sharingPolicy;
-      lines.push('', 'Sharing Policy:');
-      if (sp.access) lines.push(`  Access: ${sp.access}`);
-      if (sp.teamAccess) lines.push(`  Team access: ${sp.teamAccess}`);
-      if (sp.organizationAccess) lines.push(`  Organization access: ${sp.organizationAccess}`);
-      lines.push(`  Link access (API-level): ${sp.inviteToAccountAndBoardLinkAccess ?? 'no_access'}`);
-      if (sp.inviteToAccountAndBoardLinkAccess === 'no_access' || !sp.inviteToAccountAndBoardLinkAccess) {
+      lines.push('', 'Sharing Policy:', ...formatSharingPolicy(boardDetails.sharingPolicy));
+      const linkAccess = boardDetails.sharingPolicy.inviteToAccountAndBoardLinkAccess;
+      if (linkAccess === 'no_access' || !linkAccess) {
         lines.push('    Note: This reflects the API-level setting. The board may still have a UI-generated share link (with share_link_id) that grants access independently. Miro API does not expose UI share links.');
       }
     }
@@ -488,11 +494,7 @@ server.registerTool(
     const sp = verified.sharingPolicy;
 
     const lines = [`Updated sharing policy for board: ${verified.name} (${verified.id})`];
-    lines.push('', 'Current Sharing Policy (verified):');
-    if (sp?.access) lines.push(`  Access: ${sp.access}`);
-    if (sp?.teamAccess) lines.push(`  Team access: ${sp.teamAccess}`);
-    if (sp?.organizationAccess) lines.push(`  Organization access: ${sp.organizationAccess}`);
-    lines.push(`  Link access (API-level): ${sp?.inviteToAccountAndBoardLinkAccess ?? 'no_access'}`);
+    lines.push('', 'Current Sharing Policy (verified):', ...formatSharingPolicy(sp));
 
     // Warn if requested link access didn't apply
     if (inviteToAccountAndBoardLinkAccess &&

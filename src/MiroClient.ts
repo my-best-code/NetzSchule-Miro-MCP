@@ -1,6 +1,8 @@
 
 import fetch from 'node-fetch';
 
+const PAGE_LIMIT = 50;
+
 interface MiroBoardOwner {
   id: string;
   name: string;
@@ -33,7 +35,7 @@ export interface BoardFilterParams {
   ownerId?: string;
 }
 
-interface MiroSharingPolicy {
+export interface MiroSharingPolicy {
   access?: string;
   inviteToAccountAndBoardLinkAccess?: string;
   organizationAccess?: string;
@@ -86,42 +88,63 @@ interface MiroItemsResponse {
   cursor?: string;
 }
 
+export interface StickyNoteData {
+  data: { content: string; shape?: 'square' | 'rectangle' };
+  style: { fillColor: string };
+  position: { x: number; y: number };
+  geometry?: { width: number };
+  parent?: { id: string };
+}
+
+export interface ShapeData {
+  data: { shape: string; content?: string };
+  style: Record<string, unknown>;
+  position: { x: number; y: number; origin?: string };
+  geometry: { width: number; height: number; rotation?: number };
+}
+
+interface FetchOptions {
+  method?: string;
+  body?: unknown;
+  apiVersion?: string;
+}
+
 export class MiroClient {
   constructor(private token: string) {}
 
-  private async fetchApi(path: string, options: { method?: string; body?: any } = {}) {
-    const response = await fetch(`https://api.miro.com/v2${path}`, {
+  private async fetchApi(path: string, options: FetchOptions = {}) {
+    const version = options.apiVersion ?? 'v2';
+    const response = await fetch(`https://api.miro.com/${version}${path}`, {
       method: options.method || 'GET',
       headers: {
         'Authorization': `Bearer ${this.token}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
-      ...(options.body ? { body: JSON.stringify(options.body) } : {})
+      ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
     });
-    
+
     if (!response.ok) {
-      throw new Error(`Miro API error: ${response.status} ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`Miro API error: ${response.status} ${response.statusText} — ${errorText}`);
     }
 
     return response.json();
   }
 
+  private normalizeBoardDetails(raw: MiroBoardDetailsRaw): MiroBoardDetails {
+    return {
+      ...raw,
+      sharingPolicy: raw.sharingPolicy ?? raw.policy?.sharingPolicy,
+      permissionsPolicy: raw.permissionsPolicy ?? raw.policy?.permissionsPolicy,
+    };
+  }
+
   async getTokenContext(): Promise<MiroTokenContext> {
-    const response = await fetch('https://api.miro.com/v1/oauth-token', {
-      headers: {
-        'Authorization': `Bearer ${this.token}`,
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(`Miro API error: ${response.status} ${response.statusText}`);
-    }
-
-    return response.json() as Promise<MiroTokenContext>;
+    return this.fetchApi('/oauth-token', { apiVersion: 'v1' }) as Promise<MiroTokenContext>;
   }
 
   async getBoards(params?: BoardFilterParams): Promise<MiroBoard[]> {
-    const queryParts: string[] = ['limit=50'];
+    const queryParts: string[] = [`limit=${PAGE_LIMIT}`];
     if (params?.teamId) queryParts.push(`team_id=${params.teamId}`);
     if (params?.ownerId) queryParts.push(`owner=${params.ownerId}`);
     const query = queryParts.length ? `?${queryParts.join('&')}` : '';
@@ -143,60 +166,45 @@ export class MiroClient {
   }
 
   async getBoardItems(boardId: string): Promise<MiroItem[]> {
-    const response = await this.fetchApi(`/boards/${boardId}/items?limit=50`) as MiroItemsResponse;
+    const response = await this.fetchApi(`/boards/${boardId}/items?limit=${PAGE_LIMIT}`) as MiroItemsResponse;
     return response.data;
   }
 
-  async createStickyNote(boardId: string, data: any): Promise<MiroItem> {
+  async createStickyNote(boardId: string, data: StickyNoteData): Promise<MiroItem> {
     return this.fetchApi(`/boards/${boardId}/sticky_notes`, {
       method: 'POST',
-      body: data
+      body: data,
     }) as Promise<MiroItem>;
   }
 
-  async bulkCreateItems(boardId: string, items: any[]): Promise<MiroItem[]> {
-    const response = await fetch(`https://api.miro.com/v2/boards/${boardId}/items/bulk`, {
+  async bulkCreateItems(boardId: string, items: Record<string, unknown>[]): Promise<MiroItem[]> {
+    const result = await this.fetchApi(`/boards/${boardId}/items/bulk`, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${this.token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(items)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Miro API error: ${response.status} ${response.statusText} — ${errorText}`);
-    }
-
-    const result = await response.json() as { data?: MiroItem[] };
+      body: items,
+    }) as { data?: MiroItem[] };
     return result.data ?? (Array.isArray(result) ? result : []) as MiroItem[];
   }
 
   async getFrames(boardId: string): Promise<MiroItem[]> {
-    const response = await this.fetchApi(`/boards/${boardId}/items?type=frame&limit=50`) as MiroItemsResponse;
+    const response = await this.fetchApi(`/boards/${boardId}/items?type=frame&limit=${PAGE_LIMIT}`) as MiroItemsResponse;
     return response.data;
   }
 
   async getItemsInFrame(boardId: string, frameId: string): Promise<MiroItem[]> {
-    const response = await this.fetchApi(`/boards/${boardId}/items?parent_item_id=${frameId}&limit=50`) as MiroItemsResponse;
+    const response = await this.fetchApi(`/boards/${boardId}/items?parent_item_id=${frameId}&limit=${PAGE_LIMIT}`) as MiroItemsResponse;
     return response.data;
   }
 
-  async createShape(boardId: string, data: any): Promise<MiroItem> {
+  async createShape(boardId: string, data: ShapeData): Promise<MiroItem> {
     return this.fetchApi(`/boards/${boardId}/shapes`, {
       method: 'POST',
-      body: data
+      body: data,
     }) as Promise<MiroItem>;
   }
 
   async getBoardDetails(boardId: string): Promise<MiroBoardDetails> {
     const raw = await this.fetchApi(`/boards/${boardId}`) as MiroBoardDetailsRaw;
-    return {
-      ...raw,
-      sharingPolicy: raw.sharingPolicy ?? raw.policy?.sharingPolicy,
-      permissionsPolicy: raw.permissionsPolicy ?? raw.policy?.permissionsPolicy,
-    };
+    return this.normalizeBoardDetails(raw);
   }
 
   async getBoardMembers(boardId: string): Promise<MiroBoardMember[]> {
@@ -204,7 +212,7 @@ export class MiroClient {
     let offset = 0;
 
     while (true) {
-      const query = offset > 0 ? `?limit=50&offset=${offset}` : '?limit=50';
+      const query = offset > 0 ? `?limit=${PAGE_LIMIT}&offset=${offset}` : `?limit=${PAGE_LIMIT}`;
       const response = await this.fetchApi(`/boards/${boardId}/members${query}`) as MiroBoardMembersResponse;
       allMembers.push(...response.data);
 
@@ -218,12 +226,8 @@ export class MiroClient {
   async updateBoardSharingPolicy(boardId: string, sharingPolicy: Partial<MiroSharingPolicy>): Promise<MiroBoardDetails> {
     const raw = await this.fetchApi(`/boards/${boardId}`, {
       method: 'PATCH',
-      body: { policy: { sharingPolicy } }
+      body: { policy: { sharingPolicy } },
     }) as MiroBoardDetailsRaw;
-    return {
-      ...raw,
-      sharingPolicy: raw.sharingPolicy ?? raw.policy?.sharingPolicy,
-      permissionsPolicy: raw.permissionsPolicy ?? raw.policy?.permissionsPolicy,
-    };
+    return this.normalizeBoardDetails(raw);
   }
 }
