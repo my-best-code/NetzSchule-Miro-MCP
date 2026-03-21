@@ -5,7 +5,7 @@ Description: Miro Board Tools REST API - adapter for GPT Actions and other LLM i
 Globals:
   Function:
     Timeout: 30
-    Runtime: nodejs20.x
+    Runtime: nodejs24.x
     MemorySize: 256
 
 Parameters:
