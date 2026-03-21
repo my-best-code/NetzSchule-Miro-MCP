@@ -1,0 +1,42 @@
+name: Deploy REST API
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build:lambda
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-central-1
+
+      - uses: aws-actions/setup-sam@v2
+
+      - run: sam build --use-container=false
+      - run: |
+          sam deploy \
+            --stack-name miro-mcp-rest-api \
+            --s3-bucket ${{ secrets.SAM_BUCKET }} \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              MiroOAuthToken=${{ secrets.MIRO_OAUTH_TOKEN }} \
+              RestApiKey=${{ secrets.REST_API_KEY }} \
+              MiroTeamId=${{ secrets.MIRO_TEAM_ID }}

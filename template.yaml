@@ -44,6 +44,7 @@ Resources:
     Properties:
       Handler: lambda.handler
       CodeUri: dist/
+      ReservedConcurrentExecutions: 50
       Environment:
         Variables:
           MIRO_OAUTH_TOKEN: !Ref MiroOAuthToken
