@@ -187,9 +187,11 @@ server.registerTool(
       width: z.number().optional().describe("Custom width in pixels (overrides size preset if both provided). Default square is 199px."),
       shape: z.enum(["square", "rectangle"]).default("square")
         .describe("Sticky note shape: 'square' (default, 1:1.15 ratio) or 'rectangle' (1:0.65 ratio). Auto-set to rectangle when using size presets."),
+      parentId: z.string().optional()
+        .describe("ID of the parent frame to place the sticky note inside. Coordinates become relative to the frame's top-left corner."),
     },
   },
-  async ({ boardId, content, color, x, y, size, width, shape }) => {
+  async ({ boardId, content, color, x, y, size, width, shape, parentId }) => {
     let finalWidth = width;
     let finalShape = shape;
 
@@ -206,6 +208,10 @@ server.registerTool(
 
     if (finalWidth !== undefined) {
       stickyData.geometry = { width: finalWidth };
+    }
+
+    if (parentId) {
+      stickyData.parent = { id: parentId };
     }
 
     const stickyNote = await miroClient.createStickyNote(boardId, stickyData);
@@ -226,7 +232,9 @@ server.registerTool(
   "bulk_create_items",
   {
     description:
-      "Create multiple items on a Miro board in a single transaction (max 20 items). Use fillColor (not color) for sticky note style. For rectangular stickies, set data.shape to 'rectangle'. Position uses x/y only (no origin/relativeTo). Use parent.id to place items inside a frame.",
+      "Create multiple items on a Miro board in a single transaction (max 20 items). " +
+      "Supports same size presets as create_sticky_note: klitzeklein, klein, medium, mittelgroß, groß, riesengroß. " +
+      "Use parent.id to place items inside a frame. For sticky notes: use fillColor in style, data.shape for rectangle.",
     inputSchema: {
       boardId: z.string().describe("ID of the board to create the items on"),
       items: z.array(z.object({
@@ -236,14 +244,53 @@ server.registerTool(
         ]).describe("Type of item to create"),
         data: z.record(z.string(), z.any()).optional().describe("Item-specific data configuration"),
         style: z.record(z.string(), z.any()).optional().describe("Item-specific style configuration"),
-        position: z.record(z.string(), z.any()).optional().describe("Item position configuration"),
+        position: z.record(z.string(), z.any()).optional().describe("Item position {x, y}"),
         geometry: z.record(z.string(), z.any()).optional().describe("Item geometry configuration"),
-        parent: z.record(z.string(), z.any()).optional().describe("Parent item configuration"),
+        parent: z.record(z.string(), z.any()).optional().describe("Parent frame: {id: frameId}"),
+        size: z.enum(stickySizeNames).optional()
+          .describe("Size preset for sticky notes (same as create_sticky_note). Auto-sets shape to rectangle."),
+        width: z.number().optional().describe("Custom width for sticky notes"),
+        color: z.string().optional().describe("Shorthand for style.fillColor"),
       })).min(1).max(20).describe("Array of items to create"),
     },
   },
   async ({ boardId, items }) => {
-    const createdItems = await miroClient.bulkCreateItems(boardId, items);
+    // Transform items: resolve our custom shortcuts into Miro API format
+    const transformedItems = items.map((item) => {
+      const transformed: any = { ...item };
+
+      // Resolve size preset
+      if (transformed.size && transformed.type === 'sticky_note') {
+        const presetWidth = STICKY_SIZE_PRESETS[transformed.size];
+        if (presetWidth) {
+          transformed.geometry = { ...transformed.geometry, width: presetWidth };
+          transformed.data = { ...transformed.data, shape: 'rectangle' };
+        }
+        delete transformed.size;
+      }
+
+      // Resolve custom width
+      if (transformed.width !== undefined && transformed.type === 'sticky_note') {
+        transformed.geometry = { ...transformed.geometry, width: transformed.width };
+        delete transformed.width;
+      }
+
+      // Resolve color shorthand
+      if (transformed.color) {
+        transformed.style = { ...transformed.style, fillColor: transformed.color };
+        delete transformed.color;
+      }
+
+      // Strip non-API position fields
+      if (transformed.position) {
+        const { origin, relativeTo, ...cleanPos } = transformed.position;
+        transformed.position = cleanPos;
+      }
+
+      return transformed;
+    });
+
+    const createdItems = await miroClient.bulkCreateItems(boardId, transformedItems);
 
     return {
       content: [
