@@ -334,6 +334,116 @@ server.registerTool(
   }
 );
 
+server.registerTool(
+  "get_board_access",
+  {
+    description: "Get board access information: sharing policy, permissions policy, and list of members with their roles",
+    inputSchema: {
+      boardId: z.string().describe("ID of the board to get access information for"),
+    },
+  },
+  async ({ boardId }) => {
+    const [boardDetails, members] = await Promise.all([
+      miroClient.getBoardDetails(boardId),
+      miroClient.getBoardMembers(boardId),
+    ]);
+
+    const lines: string[] = [`Board: ${boardDetails.name} (${boardDetails.id})`];
+
+    if (boardDetails.sharingPolicy) {
+      const sp = boardDetails.sharingPolicy;
+      lines.push('', 'Sharing Policy:');
+      if (sp.access) lines.push(`  Access: ${sp.access}`);
+      if (sp.teamAccess) lines.push(`  Team access: ${sp.teamAccess}`);
+      if (sp.organizationAccess) lines.push(`  Organization access: ${sp.organizationAccess}`);
+      if (sp.inviteToAccountAndBoardLinkAccess) lines.push(`  Link access: ${sp.inviteToAccountAndBoardLinkAccess}`);
+    }
+
+    if (boardDetails.permissionsPolicy) {
+      const pp = boardDetails.permissionsPolicy;
+      lines.push('', 'Permissions Policy:');
+      if (pp.copyAccess) lines.push(`  Copy access: ${pp.copyAccess}`);
+      if (pp.sharingAccess) lines.push(`  Sharing access: ${pp.sharingAccess}`);
+    }
+
+    lines.push('', `Members (${members.length}):`);
+    const roleOrder = ['owner', 'coowner', 'editor', 'commenter', 'viewer'];
+    const sorted = [...members].sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role));
+    for (const m of sorted) {
+      lines.push(`  ${m.role}: ${m.name} (id: ${m.id})`);
+    }
+
+    return {
+      content: [{ type: "text", text: lines.join('\n') }],
+    };
+  }
+);
+
+server.registerTool(
+  "update_board_sharing",
+  {
+    description: "Update board sharing policy: configure team access level and link access permissions",
+    inputSchema: {
+      boardId: z.string().describe("ID of the board to update sharing settings for"),
+      access: z.enum(["private", "view", "comment", "edit"]).optional()
+        .describe("Board access level: private, view, comment, or edit"),
+      teamAccess: z.enum(["private", "view", "comment", "edit"]).optional()
+        .describe("Team access level: private, view, comment, or edit"),
+      organizationAccess: z.enum(["private", "view", "comment", "edit"]).optional()
+        .describe("Organization access level: private, view, comment, or edit"),
+      inviteToAccountAndBoardLinkAccess: z.enum(["viewer", "commenter", "editor", "no_access"]).optional()
+        .describe("Access level for anyone with the board link"),
+    },
+  },
+  async ({ boardId, access, teamAccess, organizationAccess, inviteToAccountAndBoardLinkAccess }) => {
+    const sharingPolicy: Record<string, string> = {};
+    if (access) sharingPolicy.access = access;
+    if (teamAccess) sharingPolicy.teamAccess = teamAccess;
+    if (organizationAccess) sharingPolicy.organizationAccess = organizationAccess;
+    if (inviteToAccountAndBoardLinkAccess) sharingPolicy.inviteToAccountAndBoardLinkAccess = inviteToAccountAndBoardLinkAccess;
+
+    if (Object.keys(sharingPolicy).length === 0) {
+      return {
+        content: [{ type: "text", text: "Error: At least one sharing policy field must be provided" }],
+      };
+    }
+
+    const updated = await miroClient.updateBoardSharingPolicy(boardId, sharingPolicy);
+
+    const lines = [`Updated sharing policy for board: ${updated.name} (${updated.id})`];
+    if (updated.sharingPolicy) {
+      const sp = updated.sharingPolicy;
+      lines.push('', 'Current Sharing Policy:');
+      if (sp.access) lines.push(`  Access: ${sp.access}`);
+      if (sp.teamAccess) lines.push(`  Team access: ${sp.teamAccess}`);
+      if (sp.organizationAccess) lines.push(`  Organization access: ${sp.organizationAccess}`);
+      if (sp.inviteToAccountAndBoardLinkAccess) lines.push(`  Link access: ${sp.inviteToAccountAndBoardLinkAccess}`);
+    }
+
+    return {
+      content: [{ type: "text", text: lines.join('\n') }],
+    };
+  }
+);
+
+server.registerTool(
+  "get_board_share_link",
+  {
+    description: "Get the shareable link for a Miro board",
+    inputSchema: {
+      boardId: z.string().describe("ID of the board to get the share link for"),
+    },
+  },
+  async ({ boardId }) => {
+    const boardDetails = await miroClient.getBoardDetails(boardId);
+    const link = boardDetails.viewLink || `https://miro.com/app/board/${boardId}/`;
+
+    return {
+      content: [{ type: "text", text: `Share link for "${boardDetails.name}": ${link}` }],
+    };
+  }
+);
+
 // --- Prompts ---
 
 server.registerPrompt(

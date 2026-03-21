@@ -22,6 +22,9 @@ Based on [@llmindset/mcp-miro](https://github.com/evalstate/mcp-miro), with adde
 - **bulk_create_items** — up to 20 items in a single transaction
 - **get_frames** — get all frames from a board
 - **get_items_in_frame** — get items within a specific frame
+- **get_board_access** — view sharing policy, permissions policy, and list of board members with roles
+- **update_board_sharing** — configure board access: team access level, link access (`private`/`view`/`comment`/`edit`)
+- **get_board_share_link** — get the shareable link for a board
 
 ### Prompts
 - **Working with MIRO** — board coordinate system and best practices

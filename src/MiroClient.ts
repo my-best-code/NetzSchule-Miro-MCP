@@ -33,6 +33,38 @@ export interface BoardFilterParams {
   ownerId?: string;
 }
 
+interface MiroSharingPolicy {
+  access?: string;
+  inviteToAccountAndBoardLinkAccess?: string;
+  organizationAccess?: string;
+  teamAccess?: string;
+}
+
+interface MiroPermissionsPolicy {
+  copyAccess?: string;
+  sharingAccess?: string;
+}
+
+interface MiroBoardDetails extends MiroBoard {
+  sharingPolicy?: MiroSharingPolicy;
+  permissionsPolicy?: MiroPermissionsPolicy;
+  viewLink?: string;
+}
+
+export interface MiroBoardMember {
+  id: string;
+  name: string;
+  role: string;
+  type: string;
+}
+
+interface MiroBoardMembersResponse {
+  data: MiroBoardMember[];
+  total: number;
+  size: number;
+  offset: number;
+}
+
 interface MiroItem {
   id: string;
   type: string;
@@ -146,5 +178,32 @@ export class MiroClient {
       method: 'POST',
       body: data
     }) as Promise<MiroItem>;
+  }
+
+  async getBoardDetails(boardId: string): Promise<MiroBoardDetails> {
+    return this.fetchApi(`/boards/${boardId}`) as Promise<MiroBoardDetails>;
+  }
+
+  async getBoardMembers(boardId: string): Promise<MiroBoardMember[]> {
+    const allMembers: MiroBoardMember[] = [];
+    let offset = 0;
+
+    while (true) {
+      const query = offset > 0 ? `?limit=50&offset=${offset}` : '?limit=50';
+      const response = await this.fetchApi(`/boards/${boardId}/members${query}`) as MiroBoardMembersResponse;
+      allMembers.push(...response.data);
+
+      if (allMembers.length >= response.total) break;
+      offset += response.size;
+    }
+
+    return allMembers;
+  }
+
+  async updateBoardSharingPolicy(boardId: string, sharingPolicy: Partial<MiroSharingPolicy>): Promise<MiroBoardDetails> {
+    return this.fetchApi(`/boards/${boardId}`, {
+      method: 'PATCH',
+      body: { sharingPolicy }
+    }) as Promise<MiroBoardDetails>;
   }
 }

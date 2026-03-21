@@ -273,6 +273,105 @@ describe('MiroClient', () => {
     });
   });
 
+  describe('getBoardDetails', () => {
+    it('calls correct endpoint and returns board with policies', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({
+        id: 'board-1',
+        name: 'Test Board',
+        sharingPolicy: {
+          access: 'private',
+          teamAccess: 'edit',
+          organizationAccess: 'view',
+          inviteToAccountAndBoardLinkAccess: 'viewer',
+        },
+        permissionsPolicy: {
+          copyAccess: 'team_editors',
+          sharingAccess: 'team_members_with_editing_rights',
+        },
+        viewLink: 'https://miro.com/app/board/board-1/',
+      }));
+
+      const result = await client.getBoardDetails('board-1');
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toBe('https://api.miro.com/v2/boards/board-1');
+      expect(result.name).toBe('Test Board');
+      expect(result.sharingPolicy?.access).toBe('private');
+      expect(result.sharingPolicy?.teamAccess).toBe('edit');
+      expect(result.permissionsPolicy?.copyAccess).toBe('team_editors');
+      expect(result.viewLink).toBe('https://miro.com/app/board/board-1/');
+    });
+  });
+
+  describe('getBoardMembers', () => {
+    it('returns all members in single page', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({
+        data: [
+          { id: 'u1', name: 'Alice', role: 'owner', type: 'board_member' },
+          { id: 'u2', name: 'Bob', role: 'editor', type: 'board_member' },
+        ],
+        total: 2, size: 2, offset: 0,
+      }));
+
+      const members = await client.getBoardMembers('board-1');
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toBe('https://api.miro.com/v2/boards/board-1/members?limit=50');
+      expect(members).toHaveLength(2);
+      expect(members[0].name).toBe('Alice');
+      expect(members[0].role).toBe('owner');
+    });
+
+    it('paginates when total > returned size', async () => {
+      mockFetch
+        .mockResolvedValueOnce(jsonResponse({
+          data: [
+            { id: 'u1', name: 'Alice', role: 'owner', type: 'board_member' },
+            { id: 'u2', name: 'Bob', role: 'editor', type: 'board_member' },
+          ],
+          total: 3, size: 2, offset: 0,
+        }))
+        .mockResolvedValueOnce(jsonResponse({
+          data: [
+            { id: 'u3', name: 'Charlie', role: 'viewer', type: 'board_member' },
+          ],
+          total: 3, size: 1, offset: 2,
+        }));
+
+      const members = await client.getBoardMembers('board-1');
+
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+      expect(members).toHaveLength(3);
+      const secondUrl = mockFetch.mock.calls[1][0] as string;
+      expect(secondUrl).toContain('offset=2');
+    });
+  });
+
+  describe('updateBoardSharingPolicy', () => {
+    it('sends PATCH with sharing policy', async () => {
+      mockFetch.mockResolvedValueOnce(jsonResponse({
+        id: 'board-1',
+        name: 'Test Board',
+        sharingPolicy: {
+          access: 'private',
+          teamAccess: 'edit',
+        },
+      }));
+
+      const result = await client.updateBoardSharingPolicy('board-1', {
+        teamAccess: 'edit',
+      });
+
+      const url = mockFetch.mock.calls[0][0] as string;
+      expect(url).toBe('https://api.miro.com/v2/boards/board-1');
+      const options = mockFetch.mock.calls[0][1];
+      expect(options.method).toBe('PATCH');
+      const body = JSON.parse(options.body);
+      expect(body.sharingPolicy.teamAccess).toBe('edit');
+      expect(result.sharingPolicy?.teamAccess).toBe('edit');
+    });
+  });
+
   describe('auth header', () => {
     it('uses Bearer token in all requests', async () => {
       const customClient = new MiroClient('my-secret-token');
