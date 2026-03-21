@@ -1,6 +1,6 @@
 # NetzSchule Miro MCP Server
 
-A Model Context Protocol server to connect to the MIRO Whiteboard Application.
+A Model Context Protocol server to connect to the MIRO Whiteboard Application — with a REST API adapter for ChatGPT and other LLMs.
 
 Based on [@llmindset/mcp-miro](https://github.com/evalstate/mcp-miro), with added board filtering, element sizing, and migration to the current MCP SDK (`McpServer` API with Zod schemas).
 
@@ -9,6 +9,7 @@ Based on [@llmindset/mcp-miro](https://github.com/evalstate/mcp-miro), with adde
 - By default, only shows boards owned by the authenticated user. Can be configured to filter by team or show all boards.
 - Input validation via Zod schemas.
 - Taking a photo of stickies and asking Claude to create MIRO equivalent works _really_ well.
+- **REST API adapter** — deploy as AWS Lambda to use with ChatGPT (GPT Actions), Gemini, or any LLM with function calling.
 
 ## Features
 
@@ -124,6 +125,58 @@ Or use environment variables:
 }
 ```
 
+## REST API for ChatGPT (GPT Actions)
+
+In addition to MCP (for Claude), this project includes a REST API adapter that can be deployed as an AWS Lambda. This makes the same Miro tools available to ChatGPT users via GPT Actions, Gemini, or any LLM that supports function calling.
+
+### Architecture
+
+```
+Claude Desktop  →  MCP (stdio)  →  MiroClient  →  Miro API
+ChatGPT / GPT   →  REST API     →  MiroClient  →  Miro API
+```
+
+Both paths share the same `MiroClient` business logic — no duplication.
+
+### REST API Endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/boards` | List available boards |
+| `GET` | `/boards/:boardId/frames` | Get all frames |
+| `GET` | `/boards/:boardId/frames/:frameId/items` | Get items in frame |
+| `GET` | `/boards/:boardId/access` | Get board access info |
+| `GET` | `/boards/:boardId/share-link` | Get board view link |
+| `POST` | `/boards/:boardId/sticky-notes` | Create sticky note |
+| `POST` | `/boards/:boardId/items/bulk` | Bulk create items (max 20) |
+| `POST` | `/boards/:boardId/shapes` | Create shape |
+| `PATCH` | `/boards/:boardId/sharing` | Update sharing policy |
+
+### Deployment (AWS)
+
+1. Build the Lambda bundle:
+```bash
+npm run build:lambda
+```
+
+2. Deploy with AWS SAM:
+```bash
+sam deploy --guided
+```
+
+Required environment variables:
+- `MIRO_OAUTH_TOKEN` — Miro OAuth token
+- `REST_API_KEY` — API key for authenticating requests
+- `MIRO_TEAM_ID` — (optional) filter boards by team
+
+3. Configure GPT Actions in ChatGPT:
+   - Create a Custom GPT
+   - Add an Action, paste the OpenAPI schema from `src/rest/openapi.yaml`
+   - Update the `servers.url` to your API Gateway URL
+   - Set authentication: API Key, Bearer scheme
+
+The OpenAPI schema is also compatible with Gemini (Vertex AI tools), LangChain, and other LLM frameworks.
+
 ## Miro API Sharing Limitations
 
 The Miro REST API v2 has important limitations regarding board sharing that differ from the Miro UI:
@@ -177,6 +230,11 @@ npm run build
 Run tests:
 ```bash
 npm test
+```
+
+Build Lambda bundle (for REST API deployment):
+```bash
+npm run build:lambda
 ```
 
 For development with auto-rebuild:

@@ -1,0 +1,114 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Miro Board Tools REST API - adapter for GPT Actions and other LLM integrations
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: nodejs20.x
+    MemorySize: 256
+
+Parameters:
+  MiroOAuthToken:
+    Type: String
+    NoEcho: true
+    Description: Miro OAuth token for API access
+  RestApiKey:
+    Type: String
+    NoEcho: true
+    Description: API key for authenticating REST requests
+  MiroTeamId:
+    Type: String
+    Default: ""
+    Description: Optional Miro team ID to filter boards
+
+Resources:
+  MiroRestApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - GET
+          - POST
+          - PATCH
+          - OPTIONS
+        AllowHeaders:
+          - Authorization
+          - Content-Type
+
+  MiroRestFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: lambda.handler
+      CodeUri: dist/
+      Environment:
+        Variables:
+          MIRO_OAUTH_TOKEN: !Ref MiroOAuthToken
+          REST_API_KEY: !Ref RestApiKey
+          MIRO_TEAM_ID: !Ref MiroTeamId
+      Events:
+        ListBoards:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /boards
+            Method: GET
+        GetFrames:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /boards/{boardId}/frames
+            Method: GET
+        GetItemsInFrame:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /boards/{boardId}/frames/{frameId}/items
+            Method: GET
+        GetBoardAccess:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /boards/{boardId}/access
+            Method: GET
+        GetBoardShareLink:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /boards/{boardId}/share-link
+            Method: GET
+        CreateStickyNote:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /boards/{boardId}/sticky-notes
+            Method: POST
+        BulkCreateItems:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /boards/{boardId}/items/bulk
+            Method: POST
+        CreateShape:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /boards/{boardId}/shapes
+            Method: POST
+        UpdateBoardSharing:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /boards/{boardId}/sharing
+            Method: PATCH
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway URL
+    Value: !Sub "https://${MiroRestApi}.execute-api.${AWS::Region}.amazonaws.com/prod"
+  FunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt MiroRestFunction.Arn

@@ -2,12 +2,17 @@
 
 import yargs from "yargs/yargs";
 import { hideBin } from "yargs/helpers";
-import { MiroClient, type BoardFilterParams, type MiroSharingPolicy } from "./MiroClient.js";
+import { MiroClient, type BoardFilterParams } from "./MiroClient.js";
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { z } from "zod";
 import fs from 'fs/promises';
 import path from 'path';
+import {
+  createStickyNoteSchema, bulkCreateItemsSchema, getFramesSchema,
+  getItemsInFrameSchema, createShapeSchema, getBoardAccessSchema,
+  updateBoardSharingSchema, getBoardShareLinkSchema,
+} from "./schemas.js";
+import { resolveStickyNote, transformBulkItems, formatSharingPolicy } from "./transforms.js";
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -105,45 +110,7 @@ server.registerResource(
   }
 );
 
-function formatSharingPolicy(sp: MiroSharingPolicy | undefined): string[] {
-  if (!sp) return [];
-  const lines: string[] = [];
-  if (sp.access) lines.push(`  Access: ${sp.access}`);
-  if (sp.teamAccess) lines.push(`  Team access: ${sp.teamAccess}`);
-  if (sp.organizationAccess) lines.push(`  Organization access: ${sp.organizationAccess}`);
-  lines.push(`  Link access (API-level): ${sp.inviteToAccountAndBoardLinkAccess ?? 'no_access'}`);
-  return lines;
-}
-
 // --- Tools ---
-
-const stickyNoteColors = [
-  "gray", "light_yellow", "yellow", "orange",
-  "light_green", "green", "dark_green", "cyan",
-  "light_pink", "pink", "violet", "red",
-  "light_blue", "blue", "dark_blue", "black",
-] as const;
-
-const shapeTypes = [
-  "rectangle", "round_rectangle", "circle", "triangle",
-  "rhombus", "parallelogram", "trapezoid", "pentagon",
-  "hexagon", "octagon", "wedge_round_rectangle_callout",
-  "star", "flow_chart_predefined_process", "cloud",
-  "cross", "can", "right_arrow", "left_arrow",
-  "left_right_arrow", "left_brace", "right_brace",
-  "flow_chart_connector", "flow_chart_magnetic_disk",
-  "flow_chart_input_output", "flow_chart_decision",
-  "flow_chart_delay", "flow_chart_display",
-  "flow_chart_document", "flow_chart_magnetic_drum",
-  "flow_chart_internal_storage", "flow_chart_manual_input",
-  "flow_chart_manual_operation", "flow_chart_merge",
-  "flow_chart_multidocuments", "flow_chart_note_curly_left",
-  "flow_chart_note_curly_right", "flow_chart_note_square",
-  "flow_chart_offpage_connector", "flow_chart_or",
-  "flow_chart_predefined_process_2", "flow_chart_preparation",
-  "flow_chart_process", "flow_chart_online_storage",
-  "flow_chart_summing_junction", "flow_chart_terminator",
-] as const;
 
 server.registerTool(
   "list_boards",
@@ -172,17 +139,6 @@ server.registerTool(
   }
 );
 
-const STICKY_SIZE_PRESETS: Record<string, number> = {
-  klitzeklein: 325,
-  klein: 650,
-  medium: 1300,
-  'mittelgroß': 2600,
-  'groß': 5600,
-  'riesengroß': 11200,
-};
-
-const stickySizeNames = Object.keys(STICKY_SIZE_PRESETS) as [string, ...string[]];
-
 server.registerTool(
   "create_sticky_note",
   {
@@ -190,43 +146,10 @@ server.registerTool(
       "Create a sticky note on a Miro board. Available colors: gray, light_yellow, yellow, orange, light_green, green, dark_green, cyan, light_pink, pink, violet, red, light_blue, blue, dark_blue, black. " +
       "Size presets (rectangular, each ~2x the previous): klitzeklein (325), klein (650), medium (1300), mittelgroß (2600), groß (5600), riesengroß (11200). " +
       "Use 'size' for presets or 'width' for custom size. Shape can be 'square' (default) or 'rectangle'.",
-    inputSchema: {
-      boardId: z.string().describe("ID of the board to create the sticky note on"),
-      content: z.string().describe("Text content of the sticky note"),
-      color: z.enum(stickyNoteColors).default("yellow").describe("Color of the sticky note"),
-      x: z.number().default(0).describe("X coordinate position"),
-      y: z.number().default(0).describe("Y coordinate position"),
-      size: z.enum(stickySizeNames).optional()
-        .describe("Named size preset: klitzeklein (325), klein (650), medium (1300), mittelgroß (2600), groß (5600), riesengroß (11200). Sets shape to rectangle automatically."),
-      width: z.number().optional().describe("Custom width in pixels (overrides size preset if both provided). Default square is 199px."),
-      shape: z.enum(["square", "rectangle"]).default("square")
-        .describe("Sticky note shape: 'square' (default, 1:1.15 ratio) or 'rectangle' (1:0.65 ratio). Auto-set to rectangle when using size presets."),
-      parentId: z.string().optional()
-        .describe("ID of the parent frame to place the sticky note inside. Coordinates become relative to the frame's top-left corner."),
-    },
+    inputSchema: createStickyNoteSchema,
   },
   async ({ boardId, content, color, x, y, size, width, shape, parentId }) => {
-    let finalWidth = width;
-    let finalShape = shape;
-
-    if (size) {
-      finalWidth = finalWidth ?? STICKY_SIZE_PRESETS[size];
-      finalShape = 'rectangle';
-    }
-
-    const stickyData: any = {
-      data: { content, shape: finalShape },
-      style: { fillColor: color },
-      position: { x, y },
-    };
-
-    if (finalWidth !== undefined) {
-      stickyData.geometry = { width: finalWidth };
-    }
-
-    if (parentId) {
-      stickyData.parent = { id: parentId };
-    }
+    const { stickyData, finalWidth, finalShape } = resolveStickyNote({ boardId, content, color, x, y, size, width, shape, parentId });
 
     const stickyNote = await miroClient.createStickyNote(boardId, stickyData);
 
@@ -249,61 +172,10 @@ server.registerTool(
       "Create multiple items on a Miro board in a single transaction (max 20 items). " +
       "Supports same size presets as create_sticky_note: klitzeklein, klein, medium, mittelgroß, groß, riesengroß. " +
       "Use parent.id to place items inside a frame. For sticky notes: use fillColor in style, data.shape for rectangle.",
-    inputSchema: {
-      boardId: z.string().describe("ID of the board to create the items on"),
-      items: z.array(z.object({
-        type: z.enum([
-          "app_card", "text", "shape", "sticky_note",
-          "image", "document", "card", "frame", "embed",
-        ]).describe("Type of item to create"),
-        data: z.record(z.string(), z.any()).optional().describe("Item-specific data configuration"),
-        style: z.record(z.string(), z.any()).optional().describe("Item-specific style configuration"),
-        position: z.record(z.string(), z.any()).optional().describe("Item position {x, y}"),
-        geometry: z.record(z.string(), z.any()).optional().describe("Item geometry configuration"),
-        parent: z.record(z.string(), z.any()).optional().describe("Parent frame: {id: frameId}"),
-        size: z.enum(stickySizeNames).optional()
-          .describe("Size preset for sticky notes (same as create_sticky_note). Auto-sets shape to rectangle."),
-        width: z.number().optional().describe("Custom width for sticky notes"),
-        color: z.string().optional().describe("Shorthand for style.fillColor"),
-      })).min(1).max(20).describe("Array of items to create"),
-    },
+    inputSchema: bulkCreateItemsSchema,
   },
   async ({ boardId, items }) => {
-    // Transform items: resolve our custom shortcuts into Miro API format
-    const transformedItems = items.map((item) => {
-      const transformed: any = { ...item };
-
-      // Resolve size preset
-      if (transformed.size && transformed.type === 'sticky_note') {
-        const presetWidth = STICKY_SIZE_PRESETS[transformed.size];
-        if (presetWidth) {
-          transformed.geometry = { ...transformed.geometry, width: presetWidth };
-          transformed.data = { ...transformed.data, shape: 'rectangle' };
-        }
-        delete transformed.size;
-      }
-
-      // Resolve custom width
-      if (transformed.width !== undefined && transformed.type === 'sticky_note') {
-        transformed.geometry = { ...transformed.geometry, width: transformed.width };
-        delete transformed.width;
-      }
-
-      // Resolve color shorthand
-      if (transformed.color) {
-        transformed.style = { ...transformed.style, fillColor: transformed.color };
-        delete transformed.color;
-      }
-
-      // Strip non-API position fields
-      if (transformed.position) {
-        const { origin, relativeTo, ...cleanPos } = transformed.position;
-        transformed.position = cleanPos;
-      }
-
-      return transformed;
-    });
-
+    const transformedItems = transformBulkItems(items);
     const createdItems = await miroClient.bulkCreateItems(boardId, transformedItems);
 
     return {
@@ -321,9 +193,7 @@ server.registerTool(
   "get_frames",
   {
     description: "Get all frames from a Miro board",
-    inputSchema: {
-      boardId: z.string().describe("ID of the board to get frames from"),
-    },
+    inputSchema: getFramesSchema,
   },
   async ({ boardId }) => {
     const frames = await miroClient.getFrames(boardId);
@@ -343,10 +213,7 @@ server.registerTool(
   "get_items_in_frame",
   {
     description: "Get all items contained within a specific frame on a Miro board",
-    inputSchema: {
-      boardId: z.string().describe("ID of the board that contains the frame"),
-      frameId: z.string().describe("ID of the frame to get items from"),
-    },
+    inputSchema: getItemsInFrameSchema,
   },
   async ({ boardId, frameId }) => {
     const items = await miroClient.getItemsInFrame(boardId, frameId);
@@ -367,34 +234,7 @@ server.registerTool(
   {
     description:
       "Create a shape on a Miro board. Available shapes include basic shapes (rectangle, circle, etc.) and flowchart shapes (process, decision, etc.). Standard geometry specs: width and height in pixels (default 200x200)",
-    inputSchema: {
-      boardId: z.string().describe("ID of the board to create the shape on"),
-      shape: z.enum(shapeTypes).default("rectangle").describe("Type of shape to create"),
-      content: z.string().optional().describe("Text content to display on the shape"),
-      style: z.object({
-        borderColor: z.string().optional(),
-        borderOpacity: z.number().min(0).max(1).optional(),
-        borderStyle: z.enum(["normal", "dotted", "dashed"]).optional(),
-        borderWidth: z.number().min(1).max(24).optional(),
-        color: z.string().optional(),
-        fillColor: z.string().optional(),
-        fillOpacity: z.number().min(0).max(1).optional(),
-        fontFamily: z.string().optional(),
-        fontSize: z.number().min(10).max(288).optional(),
-        textAlign: z.enum(["left", "center", "right"]).optional(),
-        textAlignVertical: z.enum(["top", "middle", "bottom"]).optional(),
-      }).optional().describe("Style configuration for the shape"),
-      position: z.object({
-        x: z.number().default(0),
-        y: z.number().default(0),
-        origin: z.string().default("center"),
-      }).optional().describe("Position configuration"),
-      geometry: z.object({
-        width: z.number().default(200),
-        height: z.number().default(200),
-        rotation: z.number().default(0),
-      }).optional().describe("Geometry configuration"),
-    },
+    inputSchema: createShapeSchema,
   },
   async ({ boardId, shape, content, style, position, geometry }) => {
     const shapeItem = await miroClient.createShape(boardId, {
@@ -422,9 +262,7 @@ server.registerTool(
   "get_board_access",
   {
     description: "Get board access information: sharing policy (API-level settings), permissions policy, and list of members with their roles. Note: the 'inviteToAccountAndBoardLinkAccess' field reflects the API-level link access setting, which may differ from the share link configured in Miro UI (share links with share_link_id are a UI-only feature not exposed by the Miro API).",
-    inputSchema: {
-      boardId: z.string().describe("ID of the board to get access information for"),
-    },
+    inputSchema: getBoardAccessSchema,
   },
   async ({ boardId }) => {
     const [boardDetails, members] = await Promise.all([
@@ -466,17 +304,7 @@ server.registerTool(
   "update_board_sharing",
   {
     description: "Update board sharing policy via Miro API: configure access, team access, and organization access levels. Note: inviteToAccountAndBoardLinkAccess may be restricted by organization settings. UI-generated share links (with share_link_id) cannot be created or modified via the API.",
-    inputSchema: {
-      boardId: z.string().describe("ID of the board to update sharing settings for"),
-      access: z.enum(["private", "view", "comment", "edit"]).optional()
-        .describe("Board access level: private, view, comment, or edit"),
-      teamAccess: z.enum(["private", "view", "comment", "edit"]).optional()
-        .describe("Team access level: private, view, comment, or edit"),
-      organizationAccess: z.enum(["private", "view", "comment", "edit"]).optional()
-        .describe("Organization access level: private, view, comment, or edit"),
-      inviteToAccountAndBoardLinkAccess: z.enum(["viewer", "commenter", "editor", "no_access"]).optional()
-        .describe("API-level access for anyone with the board link. May be restricted by organization settings. This does NOT control UI-generated share links (with share_link_id)."),
-    },
+    inputSchema: updateBoardSharingSchema,
   },
   async ({ boardId, access, teamAccess, organizationAccess, inviteToAccountAndBoardLinkAccess }) => {
     const sharingPolicy: Record<string, string> = {};
@@ -519,9 +347,7 @@ server.registerTool(
   "get_board_share_link",
   {
     description: "Get the board view link (direct URL). Note: this returns the board's viewLink from the API, NOT the UI-generated share link with share_link_id. Miro API does not support creating or retrieving UI share links. To get a share link with specific permissions, use the Miro UI: Share > Copy board link.",
-    inputSchema: {
-      boardId: z.string().describe("ID of the board to get the view link for"),
-    },
+    inputSchema: getBoardShareLinkSchema,
   },
   async ({ boardId }) => {
     const boardDetails = await miroClient.getBoardDetails(boardId);
