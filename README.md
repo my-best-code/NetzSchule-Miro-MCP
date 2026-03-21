@@ -23,7 +23,7 @@ Based on [@llmindset/mcp-miro](https://github.com/evalstate/mcp-miro), with adde
 - **get_frames** — get all frames from a board
 - **get_items_in_frame** — get items within a specific frame
 - **get_board_access** — view sharing policy, permissions policy, and list of board members with roles
-- **update_board_sharing** — configure board access: team access level, link access (`private`/`view`/`comment`/`edit`)
+- **update_board_sharing** — configure board access: team access level, link access (`private`/`view`/`comment`/`edit`). Verifies changes with a follow-up GET and warns if the update was not applied (e.g. due to Miro plan limitations)
 - **get_board_share_link** — get the shareable link for a board
 
 ### Prompts

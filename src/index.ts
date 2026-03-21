@@ -408,16 +408,25 @@ server.registerTool(
       };
     }
 
-    const updated = await miroClient.updateBoardSharingPolicy(boardId, sharingPolicy);
+    await miroClient.updateBoardSharingPolicy(boardId, sharingPolicy);
 
-    const lines = [`Updated sharing policy for board: ${updated.name} (${updated.id})`];
-    if (updated.sharingPolicy) {
-      const sp = updated.sharingPolicy;
-      lines.push('', 'Current Sharing Policy:');
-      if (sp.access) lines.push(`  Access: ${sp.access}`);
-      if (sp.teamAccess) lines.push(`  Team access: ${sp.teamAccess}`);
-      if (sp.organizationAccess) lines.push(`  Organization access: ${sp.organizationAccess}`);
-      if (sp.inviteToAccountAndBoardLinkAccess) lines.push(`  Link access: ${sp.inviteToAccountAndBoardLinkAccess}`);
+    // Verify with fresh GET to confirm actual state
+    const verified = await miroClient.getBoardDetails(boardId);
+    const sp = verified.sharingPolicy;
+
+    const lines = [`Updated sharing policy for board: ${verified.name} (${verified.id})`];
+    lines.push('', 'Current Sharing Policy (verified):');
+    if (sp?.access) lines.push(`  Access: ${sp.access}`);
+    if (sp?.teamAccess) lines.push(`  Team access: ${sp.teamAccess}`);
+    if (sp?.organizationAccess) lines.push(`  Organization access: ${sp.organizationAccess}`);
+    lines.push(`  Link access: ${sp?.inviteToAccountAndBoardLinkAccess ?? 'no_access'}`);
+
+    // Warn if requested link access didn't apply
+    if (inviteToAccountAndBoardLinkAccess &&
+        sp?.inviteToAccountAndBoardLinkAccess !== inviteToAccountAndBoardLinkAccess) {
+      lines.push('', `Warning: Link access was requested as "${inviteToAccountAndBoardLinkAccess}" but is still "${sp?.inviteToAccountAndBoardLinkAccess ?? 'no_access'}".`);
+      lines.push('This may be a limitation of your Miro plan or account settings.');
+      lines.push('Try changing this setting manually in Miro: Share > "Anyone with the link" > Editor');
     }
 
     return {

@@ -216,9 +216,14 @@ export class MiroClient {
   }
 
   async updateBoardSharingPolicy(boardId: string, sharingPolicy: Partial<MiroSharingPolicy>): Promise<MiroBoardDetails> {
-    return this.fetchApi(`/boards/${boardId}`, {
+    const raw = await this.fetchApi(`/boards/${boardId}`, {
       method: 'PATCH',
       body: { policy: { sharingPolicy } }
-    }) as Promise<MiroBoardDetails>;
+    }) as MiroBoardDetailsRaw;
+    return {
+      ...raw,
+      sharingPolicy: raw.sharingPolicy ?? raw.policy?.sharingPolicy,
+      permissionsPolicy: raw.permissionsPolicy ?? raw.policy?.permissionsPolicy,
+    };
   }
 }
