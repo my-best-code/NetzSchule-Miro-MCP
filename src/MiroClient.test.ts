@@ -170,21 +170,22 @@ describe('MiroClient', () => {
       expect(result.id).toBe('sticky-1');
     });
 
-    it('sends geometry when width/height provided', async () => {
+    it('sends geometry and shape when provided', async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({ id: 'sticky-2', type: 'sticky_note' }));
 
       const data = {
-        data: { content: 'Sized' },
+        data: { content: 'Sized', shape: 'rectangle' },
         style: { fillColor: 'blue' },
         position: { x: 0, y: 0 },
-        geometry: { width: 300, height: 400 },
+        geometry: { width: 2600 },
       };
 
       await client.createStickyNote('board-1', data);
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.geometry.width).toBe(300);
-      expect(body.geometry.height).toBe(400);
+      expect(body.data.shape).toBe('rectangle');
+      expect(body.geometry.width).toBe(2600);
+      expect(body.geometry.height).toBeUndefined();
     });
   });
 
@@ -258,6 +259,8 @@ describe('MiroClient', () => {
 
       const url = mockFetch.mock.calls[0][0] as string;
       expect(url).toBe('https://api.miro.com/v2/boards/board-1/items/bulk');
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body).toEqual({ data: items });
       expect(result).toHaveLength(2);
     });
 

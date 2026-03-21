@@ -17,7 +17,7 @@ Based on [@llmindset/mcp-miro](https://github.com/evalstate/mcp-miro), with adde
 
 ### Tools
 - **list_boards** — list available boards (with owner/team info)
-- **create_sticky_note** — with customizable color, position, and size (`width`, `height`)
+- **create_sticky_note** — with customizable color, position, shape (`square`/`rectangle`), and 6 named size presets (see below)
 - **create_shape** — with full control over style (`fillColor`, `borderColor`, etc.), position, and geometry (`width`, `height`, `rotation`)
 - **bulk_create_items** — up to 20 items in a single transaction
 - **get_frames** — get all frames from a board
@@ -25,6 +25,21 @@ Based on [@llmindset/mcp-miro](https://github.com/evalstate/mcp-miro), with adde
 - **get_board_access** — view sharing policy (API-level settings), permissions policy, and list of board members with roles
 - **update_board_sharing** — configure board access: access, team access, organization access levels. Verifies changes with a follow-up GET and warns if the update was not applied
 - **get_board_share_link** — get the board's direct view link (URL). See [Miro API Sharing Limitations](#miro-api-sharing-limitations) for details
+
+### Sticky Note Size Presets
+
+Sticky notes support named size presets (rectangular shape, each ~2x the previous):
+
+| Preset | Width (px) | Description |
+|--------|-----------|-------------|
+| `klitzeklein` | 325 | Tiny |
+| `klein` | 650 | Small |
+| `medium` | 1300 | Medium |
+| `mittelgroß` | 2600 | Medium-large |
+| `groß` | 5600 | Large |
+| `riesengroß` | 11200 | Extra-large |
+
+Using a size preset automatically sets the shape to `rectangle`. Height is auto-calculated by the Miro API (fixed W:H ratio of ~1.535:1 for rectangular stickies). You can also pass a custom `width` for arbitrary sizes.
 
 ### Prompts
 - **Working with MIRO** — board coordinate system and best practices

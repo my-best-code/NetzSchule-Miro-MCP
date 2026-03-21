@@ -158,32 +158,54 @@ server.registerTool(
   }
 );
 
+const STICKY_SIZE_PRESETS: Record<string, number> = {
+  klitzeklein: 325,
+  klein: 650,
+  medium: 1300,
+  'mittelgroß': 2600,
+  'groß': 5600,
+  'riesengroß': 11200,
+};
+
+const stickySizeNames = Object.keys(STICKY_SIZE_PRESETS) as [string, ...string[]];
+
 server.registerTool(
   "create_sticky_note",
   {
     description:
-      "Create a sticky note on a Miro board. By default, sticky notes are 199x228 and available in these colors: gray, light_yellow, yellow, orange, light_green, green, dark_green, cyan, light_pink, pink, violet, red, light_blue, blue, dark_blue, black.",
+      "Create a sticky note on a Miro board. Available colors: gray, light_yellow, yellow, orange, light_green, green, dark_green, cyan, light_pink, pink, violet, red, light_blue, blue, dark_blue, black. " +
+      "Size presets (rectangular, each ~2x the previous): klitzeklein (325), klein (650), medium (1300), mittelgroß (2600), groß (5600), riesengroß (11200). " +
+      "Use 'size' for presets or 'width' for custom size. Shape can be 'square' (default) or 'rectangle'.",
     inputSchema: {
       boardId: z.string().describe("ID of the board to create the sticky note on"),
       content: z.string().describe("Text content of the sticky note"),
       color: z.enum(stickyNoteColors).default("yellow").describe("Color of the sticky note"),
       x: z.number().default(0).describe("X coordinate position"),
       y: z.number().default(0).describe("Y coordinate position"),
-      width: z.number().optional().describe("Width of the sticky note in pixels (default 199, height auto-scales to keep aspect ratio)"),
-      height: z.number().optional().describe("Height of the sticky note in pixels (default 228)"),
+      size: z.enum(stickySizeNames).optional()
+        .describe("Named size preset: klitzeklein (325), klein (650), medium (1300), mittelgroß (2600), groß (5600), riesengroß (11200). Sets shape to rectangle automatically."),
+      width: z.number().optional().describe("Custom width in pixels (overrides size preset if both provided). Default square is 199px."),
+      shape: z.enum(["square", "rectangle"]).default("square")
+        .describe("Sticky note shape: 'square' (default, 1:1.15 ratio) or 'rectangle' (1:0.65 ratio). Auto-set to rectangle when using size presets."),
     },
   },
-  async ({ boardId, content, color, x, y, width, height }) => {
+  async ({ boardId, content, color, x, y, size, width, shape }) => {
+    let finalWidth = width;
+    let finalShape = shape;
+
+    if (size) {
+      finalWidth = finalWidth ?? STICKY_SIZE_PRESETS[size];
+      finalShape = 'rectangle';
+    }
+
     const stickyData: any = {
-      data: { content },
+      data: { content, shape: finalShape },
       style: { fillColor: color },
       position: { x, y },
     };
 
-    if (width !== undefined || height !== undefined) {
-      stickyData.geometry = {};
-      if (width !== undefined) stickyData.geometry.width = width;
-      if (height !== undefined) stickyData.geometry.height = height;
+    if (finalWidth !== undefined) {
+      stickyData.geometry = { width: finalWidth };
     }
 
     const stickyNote = await miroClient.createStickyNote(boardId, stickyData);
@@ -192,7 +214,8 @@ server.registerTool(
       content: [
         {
           type: "text",
-          text: `Created sticky note ${stickyNote.id} on board ${boardId}`,
+          text: `Created ${finalShape} sticky note ${stickyNote.id} on board ${boardId}` +
+            (size ? ` (size: ${size}, width: ${finalWidth})` : ''),
         },
       ],
     };

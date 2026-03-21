@@ -161,7 +161,7 @@ export class MiroClient {
         'Authorization': `Bearer ${this.token}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify(items)
+      body: JSON.stringify({ data: items })
     });
     
     if (!response.ok) {
