@@ -29,6 +29,20 @@ jobs:
       - uses: aws-actions/setup-sam@v2
 
       - run: sam build --no-use-container
+
+      - name: Clean up failed stack if in ROLLBACK_COMPLETE
+        run: |
+          STATUS=$(aws cloudformation describe-stacks \
+            --stack-name miro-mcp-rest-api \
+            --query "Stacks[0].StackStatus" \
+            --output text 2>/dev/null || echo "NOT_FOUND")
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            echo "Stack is in ROLLBACK_COMPLETE — deleting before redeploy..."
+            aws cloudformation delete-stack --stack-name miro-mcp-rest-api
+            aws cloudformation wait stack-delete-complete --stack-name miro-mcp-rest-api
+            echo "Stack deleted."
+          fi
+
       - run: |
           sam deploy \
             --stack-name miro-mcp-rest-api \
