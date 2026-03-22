@@ -113,7 +113,6 @@ Resources:
       ReservedConcurrentExecutions: 50
       Environment:
         Variables:
-          MIRO_TEAM_ID: !Ref MiroTeamId
           MIRO_CLIENT_ID: !Ref MiroClientId
           MIRO_CLIENT_SECRET: !Ref MiroClientSecret
       Events:
