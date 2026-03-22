@@ -321,13 +321,17 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     };
   }
 
-  console.log('[mcp] Bearer token present, initializing MiroClient');
+  // Log the incoming MCP message body for debugging
+  const rawBody = parseRequestBody(event);
+  console.log('[mcp] Bearer token present, body:', rawBody.slice(0, 500));
 
   let miroClient: MiroClient;
   let boardFilter: BoardFilterParams;
   try {
     miroClient = new MiroClient(miroToken);
+    console.log('[mcp] MiroClient created, building board filter...');
     boardFilter = await buildBoardFilter(miroClient);
+    console.log('[mcp] board filter ready:', JSON.stringify(boardFilter));
   } catch (err: unknown) {
     console.error('[mcp] init error', err);
     return jsonResponse(500, { error: err instanceof Error ? err.message : 'Initialization failed' });
@@ -346,10 +350,12 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
   });
 
   await server.connect(transport);
+  console.log('[mcp] server connected, handling request...');
 
   try {
     const request = apiGatewayEventToRequest(event);
     const response = await transport.handleRequest(request);
+    console.log('[mcp] response status:', response.status);
     return await webResponseToApiGateway(response);
   } catch (err: unknown) {
     console.error('[mcp] request error', err);
