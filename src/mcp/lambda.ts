@@ -4,8 +4,10 @@ import { MiroClient, type BoardFilterParams } from "../MiroClient.js";
 import { registerMcpTools } from "./registerTools.js";
 // @ts-ignore — esbuild bundles .md as text via --loader:.md=text
 import keyFactsContent from "../../resources/boards-key-facts.md";
+// @ts-ignore — esbuild resolves JSON imports at bundle time
+import pkg from "../../package.json";
 
-const VERSION = "0.4.0";
+const VERSION = pkg.version;
 const TEAM_ID = process.env.MIRO_TEAM_ID;
 
 interface APIGatewayProxyEventV2 {

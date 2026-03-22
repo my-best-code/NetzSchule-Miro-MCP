@@ -77,7 +77,7 @@ async function initBoardFilter() {
 async function main() {
   await initBoardFilter();
 
-  const keyFactsPath = path.join(process.cwd(), 'resources', 'boards-key-facts.md');
+  const keyFactsPath = path.join(__dirname, '..', 'resources', 'boards-key-facts.md');
   const keyFactsContent = await fs.readFile(keyFactsPath, 'utf-8');
   registerMcpTools(server, miroClient, boardFilter, keyFactsContent);
 
