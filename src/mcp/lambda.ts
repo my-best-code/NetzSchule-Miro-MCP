@@ -275,8 +275,8 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
         try {
           const tokenData = JSON.parse(miroResponseBody);
           if (tokenData.expires_in === 0 || !tokenData.expires_in) {
-            tokenData.expires_in = 3600; // 1 hour
-            console.log('[mcp] fixed expires_in: 0 → 3600');
+            tokenData.expires_in = 31536000; // 1 year — Miro tokens are long-lived
+            console.log('[mcp] fixed expires_in: 0 → 31536000');
           }
           fixedBody = JSON.stringify(tokenData);
         } catch {
