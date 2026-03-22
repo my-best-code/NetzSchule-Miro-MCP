@@ -17,6 +17,7 @@ interface APIGatewayProxyEventV2 {
       path: string;
     };
     stage?: string;
+    domainName?: string;
   };
   headers: Record<string, string | undefined>;
   body?: string;
@@ -84,12 +85,67 @@ async function webResponseToApiGateway(response: Response): Promise<APIGatewayPr
   };
 }
 
+function deriveBaseUrl(event: APIGatewayProxyEventV2): string {
+  const stage = event.requestContext.stage;
+  const stagePrefix = stage && stage !== '$default' ? `/${stage}` : '';
+  return `https://${event.requestContext.domainName}${stagePrefix}`;
+}
+
+function stripStagePrefix(event: APIGatewayProxyEventV2): string {
+  const rawPath = event.requestContext.http.path;
+  const stage = event.requestContext.stage;
+  if (stage && stage !== '$default' && rawPath.startsWith(`/${stage}`)) {
+    return rawPath.slice(`/${stage}`.length) || '/';
+  }
+  return rawPath;
+}
+
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
+  const path = stripStagePrefix(event);
+  const method = event.requestContext.http.method;
+  const baseUrl = deriveBaseUrl(event);
+
+  // --- OAuth discovery endpoints (no auth required) ---
+
+  if (method === 'GET' && path === '/oauth/resource-metadata') {
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({
+        resource: `${baseUrl}/mcp`,
+        authorization_servers: [baseUrl],
+        scopes_supported: ["boards:read", "boards:write"],
+        resource_name: "Miro MCP Server",
+      }),
+    };
+  }
+
+  if (method === 'GET' && path === '/.well-known/openid-configuration') {
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+      body: JSON.stringify({
+        issuer: baseUrl,
+        authorization_endpoint: "https://miro.com/oauth/authorize",
+        token_endpoint: "https://api.miro.com/v1/oauth/token",
+        response_types_supported: ["code"],
+        grant_types_supported: ["authorization_code"],
+        scopes_supported: ["boards:read", "boards:write"],
+        token_endpoint_auth_methods_supported: ["client_secret_post"],
+      }),
+    };
+  }
+
+  // --- MCP protocol (auth required) ---
+
   const miroToken = extractMiroToken(event);
   if (!miroToken) {
     return {
       statusCode: 401,
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'WWW-Authenticate': `Bearer resource_metadata="${baseUrl}/oauth/resource-metadata"`,
+      },
       body: JSON.stringify({ error: 'Unauthorized — Bearer token required' }),
     };
   }

@@ -124,6 +124,18 @@ Resources:
             ApiId: !Ref MiroRestApi
             Path: /mcp
             Method: DELETE
+        OAuthResourceMetadata:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /oauth/resource-metadata
+            Method: GET
+        OidcDiscovery:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /.well-known/openid-configuration
+            Method: GET
 
 Outputs:
   ApiUrl:
