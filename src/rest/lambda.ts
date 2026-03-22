@@ -7,6 +7,7 @@ interface APIGatewayProxyEventV2 {
       method: string;
       path: string;
     };
+    stage?: string;
   };
   headers: Record<string, string | undefined>;
   body?: string;
@@ -88,9 +89,16 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     }
   }
 
+  // API Gateway v2 includes the stage prefix (e.g. /prod) in the path — strip it for routing
+  const rawPath = event.requestContext.http.path;
+  const stage = event.requestContext?.stage;
+  const path = stage && stage !== '$default' && rawPath.startsWith(`/${stage}`)
+    ? rawPath.slice(`/${stage}`.length) || '/'
+    : rawPath;
+
   const req: HttpRequest = {
     method: event.requestContext.http.method,
-    path: event.requestContext.http.path,
+    path,
     headers: event.headers as Record<string, string | undefined>,
     body,
     queryStringParameters: event.queryStringParameters,
