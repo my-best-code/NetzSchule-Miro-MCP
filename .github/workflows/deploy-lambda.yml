@@ -51,6 +51,4 @@ jobs:
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --parameter-overrides \
-              MiroOAuthToken=${{ secrets.MIRO_OAUTH_TOKEN }} \
-              RestApiKey=${{ secrets.REST_API_KEY }} \
               MiroTeamId=${{ secrets.MIRO_TEAM_ID }}

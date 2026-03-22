@@ -9,14 +9,6 @@ Globals:
     MemorySize: 256
 
 Parameters:
-  MiroOAuthToken:
-    Type: String
-    NoEcho: true
-    Description: Miro OAuth token for API access
-  RestApiKey:
-    Type: String
-    NoEcho: true
-    Description: API key for authenticating REST requests
   MiroTeamId:
     Type: String
     Default: ""
@@ -47,8 +39,6 @@ Resources:
       ReservedConcurrentExecutions: 50
       Environment:
         Variables:
-          MIRO_OAUTH_TOKEN: !Ref MiroOAuthToken
-          REST_API_KEY: !Ref RestApiKey
           MIRO_TEAM_ID: !Ref MiroTeamId
       Events:
         ListBoards:

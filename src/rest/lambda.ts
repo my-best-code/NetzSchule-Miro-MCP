@@ -21,51 +21,41 @@ interface APIGatewayProxyResultV2 {
   body: string;
 }
 
-const API_KEY = process.env.REST_API_KEY;
-const MIRO_TOKEN = process.env.MIRO_OAUTH_TOKEN;
 const TEAM_ID = process.env.MIRO_TEAM_ID;
 
-let miroClient: MiroClient | null = null;
-let boardFilter: BoardFilterParams = {};
-let initialized = false;
+function extractMiroToken(event: APIGatewayProxyEventV2): string | null {
+  const authHeader = event.headers['authorization'] || event.headers['Authorization'];
+  if (!authHeader) return null;
+  return authHeader.replace(/^Bearer\s+/i, '').trim() || null;
+}
 
-async function init() {
-  if (initialized) return;
-  if (!MIRO_TOKEN) throw new Error('MIRO_OAUTH_TOKEN environment variable is required');
-
-  miroClient = new MiroClient(MIRO_TOKEN);
-
-  if (TEAM_ID) {
-    boardFilter = { teamId: TEAM_ID };
-  } else {
-    try {
-      const tokenContext = await miroClient.getTokenContext();
-      boardFilter = { ownerId: tokenContext.user.id };
-    } catch {
-      // If auto-detect fails, show all boards
-    }
+async function buildBoardFilter(client: MiroClient): Promise<BoardFilterParams> {
+  if (TEAM_ID) return { teamId: TEAM_ID };
+  try {
+    const tokenContext = await client.getTokenContext();
+    return { ownerId: tokenContext.user.id };
+  } catch {
+    return {};
   }
-
-  initialized = true;
 }
 
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
-  // Auth check
-  if (API_KEY) {
-    const authHeader = event.headers['authorization'] || event.headers['Authorization'];
-    const token = authHeader?.replace(/^Bearer\s+/i, '');
-    if (token !== API_KEY) {
-      return {
-        statusCode: 401,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Unauthorized' }),
-      };
-    }
+  // Extract Miro OAuth token from Authorization header (provided by ChatGPT OAuth flow)
+  const miroToken = extractMiroToken(event);
+  if (!miroToken) {
+    return {
+      statusCode: 401,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Unauthorized — Bearer token required' }),
+    };
   }
 
+  let miroClient: MiroClient;
+  let boardFilter: BoardFilterParams;
   try {
     console.log('[lambda] init start');
-    await init();
+    miroClient = new MiroClient(miroToken);
+    boardFilter = await buildBoardFilter(miroClient);
     console.log('[lambda] init done');
   } catch (err: unknown) {
     console.error('[lambda] init error', err);
@@ -108,7 +98,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
   };
 
   console.log('[lambda] handleRequest', req.method, req.path);
-  const result = await handleRequest(req, miroClient!, boardFilter);
+  const result = await handleRequest(req, miroClient, boardFilter);
   console.log('[lambda] response', result.statusCode);
   return result;
 };
