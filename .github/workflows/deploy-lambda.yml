@@ -19,7 +19,7 @@ jobs:
 
       - run: npm ci
       - run: npm test
-      - run: npm run build:lambda
+      - run: npm run build:lambdas
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:

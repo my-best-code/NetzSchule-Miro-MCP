@@ -96,6 +96,35 @@ Resources:
             Path: /boards/{boardId}/sharing
             Method: PATCH
 
+  MiroMcpFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: mcp-lambda.handler
+      CodeUri: dist/
+      ReservedConcurrentExecutions: 50
+      Environment:
+        Variables:
+          MIRO_TEAM_ID: !Ref MiroTeamId
+      Events:
+        McpPost:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /mcp
+            Method: POST
+        McpGet:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /mcp
+            Method: GET
+        McpDelete:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /mcp
+            Method: DELETE
+
 Outputs:
   ApiUrl:
     Description: API Gateway URL
@@ -103,3 +132,9 @@ Outputs:
   FunctionArn:
     Description: Lambda function ARN
     Value: !GetAtt MiroRestFunction.Arn
+  McpUrl:
+    Description: MCP Streamable HTTP endpoint URL
+    Value: !Sub "https://${MiroRestApi}.execute-api.${AWS::Region}.amazonaws.com/prod/mcp"
+  McpFunctionArn:
+    Description: MCP Lambda function ARN
+    Value: !GetAtt MiroMcpFunction.Arn

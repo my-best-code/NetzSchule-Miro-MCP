@@ -9,6 +9,7 @@ Based on [@llmindset/mcp-miro](https://github.com/evalstate/mcp-miro), with adde
 - By default, only shows boards owned by the authenticated user. Can be configured to filter by team or show all boards.
 - Input validation via Zod schemas.
 - Taking a photo of stickies and asking Claude to create MIRO equivalent works _really_ well.
+- **Remote MCP server** — deploy as AWS Lambda with Streamable HTTP transport. Connect Claude Desktop with just a URL and token — no Node.js, npm, or git installation required.
 - **REST API adapter** — deploy as AWS Lambda to use with ChatGPT (GPT Actions), Gemini, or any LLM with function calling.
 
 ## Features
@@ -68,7 +69,58 @@ node build/index.js --token YOUR_TOKEN --team-id 1234567890
 node build/index.js --token YOUR_TOKEN --no-filter
 ```
 
-## Installation (Claude Desktop)
+## Remote MCP Server (Claude Desktop — no installation required)
+
+If someone has already deployed the MCP server to AWS, you can connect Claude Desktop with just a URL and your Miro token — no Node.js, npm, or git needed.
+
+### Prerequisites
+
+1. **Miro OAuth Token** — from your Miro App (see [Miro App Management](https://miro.com/app/settings/user-profile/apps))
+2. **Claude Desktop** — with Developer Tools enabled (Settings → Developer)
+3. **MCP server URL** — provided by whoever deployed the server (e.g., `https://xxx.execute-api.eu-central-1.amazonaws.com/prod/mcp`)
+
+### Configure Claude Desktop
+
+Open the config file:
+- Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%/Claude/claude_desktop_config.json`
+
+Add the following:
+
+```json
+{
+  "mcpServers": {
+    "mcp-miro": {
+      "url": "https://YOUR_API_GATEWAY_URL/prod/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_MIRO_OAUTH_TOKEN"
+      }
+    }
+  }
+}
+```
+
+Restart Claude Desktop. You should see the Miro tools available in the chat.
+
+### Deploying the Remote MCP Server
+
+To deploy the Streamable HTTP MCP server to your own AWS account:
+
+1. Build the MCP Lambda bundle:
+```bash
+npm run build:mcp-lambda
+```
+
+2. Deploy with AWS SAM:
+```bash
+sam deploy --guided
+```
+
+The `McpUrl` output will show the endpoint URL. Share it with your team — each user provides their own Miro token in the `Authorization` header.
+
+---
+
+## Local Installation (Claude Desktop)
 
 ### Prerequisites
 
@@ -163,11 +215,12 @@ In addition to MCP (for Claude), this project includes a REST API adapter that c
 ### Architecture
 
 ```
-Claude Desktop  →  MCP (stdio)  →  MiroClient  →  Miro API
-ChatGPT / GPT   →  REST API     →  MiroClient  →  Miro API
+Claude Desktop  →  MCP (stdio)              →  MiroClient  →  Miro API
+Claude Desktop  →  MCP (Streamable HTTP)    →  MiroClient  →  Miro API   (remote, serverless)
+ChatGPT / GPT   →  REST API                 →  MiroClient  →  Miro API
 ```
 
-Both paths share the same `MiroClient` business logic — no duplication.
+All three paths share the same `MiroClient` business logic — no duplication.
 
 ### Authentication
 
@@ -295,9 +348,11 @@ Run tests:
 npm test
 ```
 
-Build Lambda bundle (for REST API deployment):
+Build Lambda bundles:
 ```bash
-npm run build:lambda
+npm run build:lambda       # REST API only
+npm run build:mcp-lambda   # MCP Streamable HTTP only
+npm run build:lambdas      # both
 ```
 
 For development with auto-rebuild:

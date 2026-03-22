@@ -28,6 +28,8 @@
     "watch": "tsc --watch",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js",
     "build:lambda": "esbuild src/rest/lambda.ts --bundle --platform=node --target=node24 --outfile=dist/lambda.js --format=cjs",
+    "build:mcp-lambda": "esbuild src/mcp/lambda.ts --bundle --platform=node --target=node24 --outfile=dist/mcp-lambda.js --format=cjs --loader:.md=text",
+    "build:lambdas": "npm run build:lambda && npm run build:mcp-lambda",
     "test": "vitest run",
     "test:watch": "vitest"
   },
