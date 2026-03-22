@@ -68,37 +68,68 @@ node build/index.js --token YOUR_TOKEN --team-id 1234567890
 node build/index.js --token YOUR_TOKEN --no-filter
 ```
 
-## Installation
+## Installation (Claude Desktop)
 
-To use with Claude Desktop, add the server config:
+### Prerequisites
 
-On MacOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
-On Windows: `%APPDATA%/Claude/claude_desktop_config.json`
+1. **Node.js** (v18 or later) — [download here](https://nodejs.org/)
+   - To check if already installed: open Terminal (Mac) or Command Prompt (Windows) and run `node --version`
+2. **Miro OAuth Token** — from your Miro App (see [Miro App Management](https://miro.com/app/settings/user-profile/apps)). If your organization already has a Miro App, ask the admin for the Installation URL to authorize it and obtain your token.
+3. **Claude Desktop** — with Developer Tools enabled (Settings → Developer)
+
+### Step 1: Install the MCP server
+
+Open Terminal (Mac) or Command Prompt (Windows) and run:
+
+```bash
+git clone https://github.com/my-best-code/NetzSchule-Miro-MCP.git
+cd NetzSchule-Miro-MCP
+npm install
+npm run build
+```
+
+Note the full path to the `build/index.js` file — you'll need it in the next step. For example:
+- Mac: `/Users/yourname/NetzSchule-Miro-MCP/build/index.js`
+- Windows: `C:\Users\yourname\NetzSchule-Miro-MCP\build\index.js`
+
+### Step 2: Configure Claude Desktop
+
+Open the config file:
+- Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%/Claude/claude_desktop_config.json`
+
+Add the following (replace the paths and token with your own):
 
 ```json
 {
   "mcpServers": {
     "mcp-miro": {
-      "command": "/path/to/node-or-npx",
+      "command": "node",
       "arguments": [
-        "/path/to/mcp-miro/build/index.js",
-        "--token", "MIRO-OAUTH-KEY"
+        "/full/path/to/NetzSchule-Miro-MCP/build/index.js",
+        "--token", "YOUR_MIRO_OAUTH_TOKEN"
       ]
     }
   }
 }
 ```
 
-To filter by team or show all boards, add the corresponding arguments:
+### Step 3: Restart Claude Desktop
+
+Close and reopen Claude Desktop. You should see the Miro tools available in the chat.
+
+### Additional options
+
+To filter boards by team, add the `--team-id` argument:
 
 ```json
 {
   "mcpServers": {
     "mcp-miro": {
-      "command": "/path/to/node-or-npx",
+      "command": "node",
       "arguments": [
-        "/path/to/mcp-miro/build/index.js",
-        "--token", "MIRO-OAUTH-KEY",
+        "/full/path/to/NetzSchule-Miro-MCP/build/index.js",
+        "--token", "YOUR_MIRO_OAUTH_TOKEN",
         "--team-id", "1234567890"
       ]
     }
@@ -106,18 +137,18 @@ To filter by team or show all boards, add the corresponding arguments:
 }
 ```
 
-Or use environment variables:
+Or use environment variables instead of arguments:
 
 ```json
 {
   "mcpServers": {
     "mcp-miro": {
-      "command": "/path/to/node-or-npx",
+      "command": "node",
       "arguments": [
-        "/path/to/mcp-miro/build/index.js"
+        "/full/path/to/NetzSchule-Miro-MCP/build/index.js"
       ],
       "env": {
-        "MIRO_OAUTH_TOKEN": "MIRO-OAUTH-KEY",
+        "MIRO_OAUTH_TOKEN": "YOUR_MIRO_OAUTH_TOKEN",
         "MIRO_TEAM_ID": "1234567890"
       }
     }
