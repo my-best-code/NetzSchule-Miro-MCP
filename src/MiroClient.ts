@@ -114,7 +114,6 @@ export class MiroClient {
   private async fetchApi(path: string, options: FetchOptions = {}) {
     const version = options.apiVersion ?? 'v2';
     const url = `https://api.miro.com/${version}${path}`;
-    console.log(`[MiroClient] ${options.method || 'GET'} ${url}`);
     const response = await fetch(url, {
       method: options.method || 'GET',
       headers: {
@@ -124,7 +123,6 @@ export class MiroClient {
       ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
     });
 
-    console.log(`[MiroClient] response ${response.status} ${response.statusText}`);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Miro API error: ${response.status} ${response.statusText} — ${errorText}`);
@@ -143,6 +141,14 @@ export class MiroClient {
 
   async getTokenContext(): Promise<MiroTokenContext> {
     return this.fetchApi('/oauth-token', { apiVersion: 'v1' }) as Promise<MiroTokenContext>;
+  }
+
+  async getBoardsPage(params: BoardFilterParams | undefined, limit: number, offset: number): Promise<MiroBoardsResponse> {
+    const queryParts: string[] = [`limit=${limit}`];
+    if (offset > 0) queryParts.push(`offset=${offset}`);
+    if (params?.teamId) queryParts.push(`team_id=${params.teamId}`);
+    if (params?.ownerId) queryParts.push(`owner=${params.ownerId}`);
+    return this.fetchApi(`/boards?${queryParts.join('&')}`) as Promise<MiroBoardsResponse>;
   }
 
   async getBoards(params?: BoardFilterParams): Promise<MiroBoard[]> {

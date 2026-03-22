@@ -42,8 +42,10 @@ export async function handleRequest(
 
     switch (handler) {
       case 'listBoards': {
-        const boards = await miroClient.getBoards(boardFilter);
-        return jsonResponse(200, { boards });
+        const limit = Math.min(parseInt(req.queryStringParameters?.limit || '50', 10) || 50, 50);
+        const offset = parseInt(req.queryStringParameters?.offset || '0', 10) || 0;
+        const boards = await miroClient.getBoardsPage(boardFilter, limit, offset);
+        return jsonResponse(200, boards);
       }
 
       case 'getFrames': {
