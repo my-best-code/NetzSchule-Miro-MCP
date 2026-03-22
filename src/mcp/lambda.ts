@@ -268,7 +268,22 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       console.log('[mcp] Miro token response status:', miroResponse.status);
       console.log('[mcp] Miro token response body:', miroResponseBody);
 
-      // Forward Miro's response headers
+      // Fix Miro's expires_in: 0 — Claude interprets 0 as "already expired"
+      // Miro tokens are long-lived, so we set a reasonable TTL
+      let fixedBody = miroResponseBody;
+      if (miroResponse.ok) {
+        try {
+          const tokenData = JSON.parse(miroResponseBody);
+          if (tokenData.expires_in === 0 || !tokenData.expires_in) {
+            tokenData.expires_in = 3600; // 1 hour
+            console.log('[mcp] fixed expires_in: 0 → 3600');
+          }
+          fixedBody = JSON.stringify(tokenData);
+        } catch {
+          // keep original body if parse fails
+        }
+      }
+
       const responseHeaders: Record<string, string> = {
         'Content-Type': miroResponse.headers.get('content-type') || 'application/json',
         'Access-Control-Allow-Origin': '*',
@@ -278,7 +293,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       return {
         statusCode: miroResponse.status,
         headers: responseHeaders,
-        body: miroResponseBody,
+        body: fixedBody,
       };
     } catch (err: unknown) {
       console.error('[mcp] Miro token exchange error:', err);
