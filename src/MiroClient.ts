@@ -113,7 +113,9 @@ export class MiroClient {
 
   private async fetchApi(path: string, options: FetchOptions = {}) {
     const version = options.apiVersion ?? 'v2';
-    const response = await fetch(`https://api.miro.com/${version}${path}`, {
+    const url = `https://api.miro.com/${version}${path}`;
+    console.log(`[MiroClient] ${options.method || 'GET'} ${url}`);
+    const response = await fetch(url, {
       method: options.method || 'GET',
       headers: {
         'Authorization': `Bearer ${this.token}`,
@@ -122,6 +124,7 @@ export class MiroClient {
       ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
     });
 
+    console.log(`[MiroClient] response ${response.status} ${response.statusText}`);
     if (!response.ok) {
       const errorText = await response.text();
       throw new Error(`Miro API error: ${response.status} ${response.statusText} — ${errorText}`);
