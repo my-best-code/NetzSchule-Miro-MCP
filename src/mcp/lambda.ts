@@ -152,6 +152,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       issuer: baseUrl,
       authorization_endpoint: `${baseUrl}/oauth/authorize`,
       token_endpoint: `${baseUrl}/oauth/token`,
+      registration_endpoint: `${baseUrl}/oauth/register`,
       response_types_supported: ["code"],
       grant_types_supported: ["authorization_code"],
       scopes_supported: [],
@@ -160,6 +161,36 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     };
     console.log('[mcp] oidc-discovery response', JSON.stringify(body));
     return jsonResponse(200, body);
+  }
+
+  // =============================================
+  // OAuth Proxy — Dynamic Client Registration (RFC 7591)
+  // =============================================
+
+  // POST /oauth/register — returns a proxy client_id (real Miro credentials are server-side)
+  if (method === 'POST' && path === '/oauth/register') {
+    const rawBody = parseRequestBody(event);
+    console.log('[mcp] /oauth/register request:', rawBody);
+
+    let registrationRequest: Record<string, unknown> = {};
+    try {
+      registrationRequest = rawBody ? JSON.parse(rawBody) : {};
+    } catch {
+      // ignore parse errors
+    }
+
+    const clientId = `mcp-miro-proxy-${Date.now()}`;
+    const response = {
+      client_id: clientId,
+      client_name: (registrationRequest.client_name as string) || 'MCP Client',
+      redirect_uris: registrationRequest.redirect_uris || [],
+      grant_types: ["authorization_code"],
+      response_types: ["code"],
+      token_endpoint_auth_method: "client_secret_post",
+    };
+
+    console.log('[mcp] /oauth/register response:', JSON.stringify(response));
+    return jsonResponse(201, response);
   }
 
   // =============================================

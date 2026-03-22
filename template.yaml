@@ -147,6 +147,12 @@ Resources:
             ApiId: !Ref MiroRestApi
             Path: /.well-known/openid-configuration
             Method: GET
+        OAuthRegister:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /oauth/register
+            Method: POST
         OAuthAuthorize:
           Type: HttpApi
           Properties:
