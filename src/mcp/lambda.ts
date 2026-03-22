@@ -9,6 +9,10 @@ import pkg from "../../package.json";
 
 const VERSION = pkg.version;
 const TEAM_ID = process.env.MIRO_TEAM_ID;
+const MIRO_CLIENT_ID = process.env.MIRO_CLIENT_ID;
+const MIRO_CLIENT_SECRET = process.env.MIRO_CLIENT_SECRET;
+
+// --- Types ---
 
 interface APIGatewayProxyEventV2 {
   requestContext: {
@@ -22,6 +26,7 @@ interface APIGatewayProxyEventV2 {
   headers: Record<string, string | undefined>;
   body?: string;
   isBase64Encoded?: boolean;
+  queryStringParameters?: Record<string, string | undefined>;
 }
 
 interface APIGatewayProxyResultV2 {
@@ -29,6 +34,8 @@ interface APIGatewayProxyResultV2 {
   headers: Record<string, string>;
   body: string;
 }
+
+// --- Helpers ---
 
 function extractMiroToken(event: APIGatewayProxyEventV2): string | null {
   const authHeader = event.headers['authorization'] || event.headers['Authorization'];
@@ -60,7 +67,6 @@ function apiGatewayEventToRequest(event: APIGatewayProxyEventV2): Request {
       : event.body;
   }
 
-  // Construct a URL — the host doesn't matter for routing, but Request requires a full URL
   const url = `https://localhost${event.requestContext.http.path}`;
 
   return new Request(url, {
@@ -100,6 +106,23 @@ function stripStagePrefix(event: APIGatewayProxyEventV2): string {
   return rawPath;
 }
 
+function jsonResponse(statusCode: number, body: unknown, extraHeaders?: Record<string, string>): APIGatewayProxyResultV2 {
+  return {
+    statusCode,
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', ...extraHeaders },
+    body: JSON.stringify(body),
+  };
+}
+
+function parseRequestBody(event: APIGatewayProxyEventV2): string {
+  if (!event.body) return '';
+  return event.isBase64Encoded
+    ? Buffer.from(event.body, 'base64').toString('utf-8')
+    : event.body;
+}
+
+// --- Handler ---
+
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
   const path = stripStagePrefix(event);
   const method = event.requestContext.http.method;
@@ -107,43 +130,137 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
   console.log('[mcp] request', method, path);
 
-  // --- OAuth discovery endpoints (no auth required) ---
+  // =============================================
+  // OAuth Discovery (no auth required)
+  // =============================================
 
+  // Protected Resource Metadata (RFC 9728)
   if (method === 'GET' && path === '/oauth/resource-metadata') {
     const body = {
       resource: `${baseUrl}/mcp`,
       authorization_servers: [baseUrl],
-      scopes_supported: ["boards:read", "boards:write"],
+      scopes_supported: [],
       resource_name: "Miro MCP Server",
     };
     console.log('[mcp] resource-metadata response', JSON.stringify(body));
-    return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify(body),
-    };
+    return jsonResponse(200, body);
   }
 
+  // OIDC Discovery — authorization server metadata
   if (method === 'GET' && path === '/.well-known/openid-configuration') {
     const body = {
       issuer: baseUrl,
-      authorization_endpoint: "https://miro.com/oauth/authorize",
-      token_endpoint: "https://api.miro.com/v1/oauth/token",
+      authorization_endpoint: `${baseUrl}/oauth/authorize`,
+      token_endpoint: `${baseUrl}/oauth/token`,
       response_types_supported: ["code"],
       grant_types_supported: ["authorization_code"],
-      scopes_supported: ["boards:read", "boards:write"],
+      scopes_supported: [],
       token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
       code_challenge_methods_supported: ["S256"],
     };
     console.log('[mcp] oidc-discovery response', JSON.stringify(body));
+    return jsonResponse(200, body);
+  }
+
+  // =============================================
+  // OAuth Proxy — authorization endpoint
+  // =============================================
+
+  // GET /oauth/authorize — redirect to Miro with injected client_id
+  if (method === 'GET' && path === '/oauth/authorize') {
+    if (!MIRO_CLIENT_ID) {
+      console.error('[mcp] MIRO_CLIENT_ID not configured');
+      return jsonResponse(500, { error: 'OAuth not configured: MIRO_CLIENT_ID missing' });
+    }
+
+    const qs = event.queryStringParameters || {};
+    console.log('[mcp] /oauth/authorize query params', JSON.stringify(qs));
+
+    // Build Miro authorization URL, replacing client_id with ours
+    const miroAuthUrl = new URL('https://miro.com/oauth/authorize');
+    // Forward all query params from the client
+    for (const [key, value] of Object.entries(qs)) {
+      if (value !== undefined) {
+        miroAuthUrl.searchParams.set(key, value);
+      }
+    }
+    // Override client_id with our server-side value
+    miroAuthUrl.searchParams.set('client_id', MIRO_CLIENT_ID);
+
+    const redirectUrl = miroAuthUrl.toString();
+    console.log('[mcp] redirecting to Miro:', redirectUrl);
+
     return {
-      statusCode: 200,
-      headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify(body),
+      statusCode: 302,
+      headers: {
+        'Location': redirectUrl,
+        'Cache-Control': 'no-store',
+      },
+      body: '',
     };
   }
 
-  // --- MCP protocol (auth required) ---
+  // =============================================
+  // OAuth Proxy — token endpoint
+  // =============================================
+
+  // POST /oauth/token — proxy token exchange to Miro
+  if (method === 'POST' && path === '/oauth/token') {
+    if (!MIRO_CLIENT_ID || !MIRO_CLIENT_SECRET) {
+      console.error('[mcp] MIRO_CLIENT_ID or MIRO_CLIENT_SECRET not configured');
+      return jsonResponse(500, { error: 'OAuth not configured: missing Miro credentials' });
+    }
+
+    const rawBody = parseRequestBody(event);
+    console.log('[mcp] /oauth/token request body:', rawBody);
+
+    // Parse the incoming form-encoded body
+    const params = new URLSearchParams(rawBody);
+
+    // Inject our server-side Miro credentials
+    params.set('client_id', MIRO_CLIENT_ID);
+    params.set('client_secret', MIRO_CLIENT_SECRET);
+
+    const miroTokenUrl = 'https://api.miro.com/v1/oauth/token';
+    const forwardBody = params.toString();
+    console.log('[mcp] forwarding to Miro token endpoint:', miroTokenUrl);
+    console.log('[mcp] forward body (redacted secret):', forwardBody.replace(/client_secret=[^&]+/, 'client_secret=***'));
+
+    try {
+      const miroResponse = await fetch(miroTokenUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: forwardBody,
+      });
+
+      const miroResponseBody = await miroResponse.text();
+      console.log('[mcp] Miro token response status:', miroResponse.status);
+      console.log('[mcp] Miro token response body:', miroResponseBody);
+
+      // Forward Miro's response headers
+      const responseHeaders: Record<string, string> = {
+        'Content-Type': miroResponse.headers.get('content-type') || 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-store',
+      };
+
+      return {
+        statusCode: miroResponse.status,
+        headers: responseHeaders,
+        body: miroResponseBody,
+      };
+    } catch (err: unknown) {
+      console.error('[mcp] Miro token exchange error:', err);
+      return jsonResponse(502, {
+        error: 'Token exchange with Miro failed',
+        details: err instanceof Error ? err.message : 'Unknown error',
+      });
+    }
+  }
+
+  // =============================================
+  // MCP Protocol (auth required)
+  // =============================================
 
   const miroToken = extractMiroToken(event);
   if (!miroToken) {
@@ -166,12 +283,8 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     miroClient = new MiroClient(miroToken);
     boardFilter = await buildBoardFilter(miroClient);
   } catch (err: unknown) {
-    console.error('[mcp-lambda] init error', err);
-    return {
-      statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: err instanceof Error ? err.message : 'Initialization failed' }),
-    };
+    console.error('[mcp] init error', err);
+    return jsonResponse(500, { error: err instanceof Error ? err.message : 'Initialization failed' });
   }
 
   const server = new McpServer({
@@ -182,8 +295,8 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
   registerMcpTools(server, miroClient, boardFilter, keyFactsContent);
 
   const transport = new WebStandardStreamableHTTPServerTransport({
-    sessionIdGenerator: undefined, // stateless mode
-    enableJsonResponse: true,      // JSON response instead of SSE (Lambda-compatible)
+    sessionIdGenerator: undefined,
+    enableJsonResponse: true,
   });
 
   await server.connect(transport);
@@ -193,12 +306,8 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     const response = await transport.handleRequest(request);
     return await webResponseToApiGateway(response);
   } catch (err: unknown) {
-    console.error('[mcp-lambda] request error', err);
-    return {
-      statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: err instanceof Error ? err.message : 'Internal server error' }),
-    };
+    console.error('[mcp] request error', err);
+    return jsonResponse(500, { error: err instanceof Error ? err.message : 'Internal server error' });
   } finally {
     await transport.close();
     await server.close();

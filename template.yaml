@@ -13,6 +13,15 @@ Parameters:
     Type: String
     Default: ""
     Description: Optional Miro team ID to filter boards
+  MiroClientId:
+    Type: String
+    Default: ""
+    Description: Miro OAuth App Client ID (for MCP OAuth proxy)
+  MiroClientSecret:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: Miro OAuth App Client Secret (for MCP OAuth proxy)
 
 Resources:
   MiroRestApi:
@@ -105,6 +114,8 @@ Resources:
       Environment:
         Variables:
           MIRO_TEAM_ID: !Ref MiroTeamId
+          MIRO_CLIENT_ID: !Ref MiroClientId
+          MIRO_CLIENT_SECRET: !Ref MiroClientSecret
       Events:
         McpPost:
           Type: HttpApi
@@ -136,6 +147,18 @@ Resources:
             ApiId: !Ref MiroRestApi
             Path: /.well-known/openid-configuration
             Method: GET
+        OAuthAuthorize:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /oauth/authorize
+            Method: GET
+        OAuthToken:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /oauth/token
+            Method: POST
 
 Outputs:
   ApiUrl:

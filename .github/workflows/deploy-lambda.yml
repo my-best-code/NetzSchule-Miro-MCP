@@ -51,4 +51,6 @@ jobs:
             --no-confirm-changeset \
             --no-fail-on-empty-changeset \
             --parameter-overrides \
-              MiroTeamId=${{ secrets.MIRO_TEAM_ID }}
+              MiroTeamId=${{ secrets.MIRO_TEAM_ID }} \
+              MiroClientId=${{ secrets.MIRO_CLIENT_ID }} \
+              MiroClientSecret=${{ secrets.MIRO_CLIENT_SECRET }}
