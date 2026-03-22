@@ -105,34 +105,41 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
   const method = event.requestContext.http.method;
   const baseUrl = deriveBaseUrl(event);
 
+  console.log('[mcp] request', method, path);
+
   // --- OAuth discovery endpoints (no auth required) ---
 
   if (method === 'GET' && path === '/oauth/resource-metadata') {
+    const body = {
+      resource: `${baseUrl}/mcp`,
+      authorization_servers: [baseUrl],
+      scopes_supported: ["boards:read", "boards:write"],
+      resource_name: "Miro MCP Server",
+    };
+    console.log('[mcp] resource-metadata response', JSON.stringify(body));
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify({
-        resource: `${baseUrl}/mcp`,
-        authorization_servers: [baseUrl],
-        scopes_supported: ["boards:read", "boards:write"],
-        resource_name: "Miro MCP Server",
-      }),
+      body: JSON.stringify(body),
     };
   }
 
   if (method === 'GET' && path === '/.well-known/openid-configuration') {
+    const body = {
+      issuer: baseUrl,
+      authorization_endpoint: "https://miro.com/oauth/authorize",
+      token_endpoint: "https://api.miro.com/v1/oauth/token",
+      response_types_supported: ["code"],
+      grant_types_supported: ["authorization_code"],
+      scopes_supported: ["boards:read", "boards:write"],
+      token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
+      code_challenge_methods_supported: ["S256"],
+    };
+    console.log('[mcp] oidc-discovery response', JSON.stringify(body));
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-      body: JSON.stringify({
-        issuer: baseUrl,
-        authorization_endpoint: "https://miro.com/oauth/authorize",
-        token_endpoint: "https://api.miro.com/v1/oauth/token",
-        response_types_supported: ["code"],
-        grant_types_supported: ["authorization_code"],
-        scopes_supported: ["boards:read", "boards:write"],
-        token_endpoint_auth_methods_supported: ["client_secret_post"],
-      }),
+      body: JSON.stringify(body),
     };
   }
 
@@ -140,6 +147,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
 
   const miroToken = extractMiroToken(event);
   if (!miroToken) {
+    console.log('[mcp] 401 — no Bearer token');
     return {
       statusCode: 401,
       headers: {
@@ -149,6 +157,8 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       body: JSON.stringify({ error: 'Unauthorized — Bearer token required' }),
     };
   }
+
+  console.log('[mcp] Bearer token present, initializing MiroClient');
 
   let miroClient: MiroClient;
   let boardFilter: BoardFilterParams;
