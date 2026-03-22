@@ -27,7 +27,7 @@
     "prepare": "npm run build",
     "watch": "tsc --watch",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js",
-    "build:lambda": "esbuild src/rest/lambda.ts --bundle --platform=node --target=node24 --outfile=dist/lambda.js --format=esm --banner:js=\"import { createRequire } from 'module'; const require = createRequire(import.meta.url);\"",
+    "build:lambda": "esbuild src/rest/lambda.ts --bundle --platform=node --target=node24 --outfile=dist/lambda.js --format=cjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },
