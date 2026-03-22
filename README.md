@@ -127,7 +127,7 @@ Or use environment variables:
 
 ## REST API for ChatGPT (GPT Actions)
 
-In addition to MCP (for Claude), this project includes a REST API adapter that can be deployed as an AWS Lambda. This makes the same Miro tools available to ChatGPT users via GPT Actions, Gemini, or any LLM that supports function calling.
+In addition to MCP (for Claude), this project includes a REST API adapter that can be deployed as an AWS Lambda. This makes the same Miro tools available to ChatGPT users via GPT Actions, or any LLM that supports OpenAPI / function calling.
 
 ### Architecture
 
@@ -138,11 +138,17 @@ ChatGPT / GPT   →  REST API     →  MiroClient  →  Miro API
 
 Both paths share the same `MiroClient` business logic — no duplication.
 
+### Authentication
+
+The REST API uses **Miro OAuth per user**. Each request must include a valid Miro OAuth token in the `Authorization: Bearer <token>` header. There is no shared API key — every user authenticates with their own Miro account.
+
+When used with ChatGPT GPT Actions, the OAuth flow is handled automatically: users authorize the Miro App once, and ChatGPT sends their token with every request.
+
 ### REST API Endpoints
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/boards` | List available boards |
+| `GET` | `/boards` | List available boards (max 50 per page) |
 | `GET` | `/boards/:boardId/frames` | Get all frames |
 | `GET` | `/boards/:boardId/frames/:frameId/items` | Get items in frame |
 | `GET` | `/boards/:boardId/access` | Get board access info |
@@ -164,18 +170,44 @@ npm run build:lambda
 sam deploy --guided
 ```
 
-Required environment variables:
-- `MIRO_OAUTH_TOKEN` — Miro OAuth token
-- `REST_API_KEY` — API key for authenticating requests
-- `MIRO_TEAM_ID` — (optional) filter boards by team
+Optional environment variable:
+- `MIRO_TEAM_ID` — filter boards by team (if not set, auto-detects user's boards)
 
-3. Configure GPT Actions in ChatGPT:
-   - Create a Custom GPT
-   - Add an Action, paste the OpenAPI schema from `src/rest/openapi.yaml`
-   - Update the `servers.url` to your API Gateway URL
-   - Set authentication: API Key, Bearer scheme
+### Setting up GPT Actions (ChatGPT)
 
-The OpenAPI schema is also compatible with Gemini (Vertex AI tools), LangChain, and other LLM frameworks.
+#### Prerequisites
+
+You need a **Miro App** for OAuth. If you're in the same Miro organization as the app creator, use the shared Installation URL. Otherwise, create your own:
+
+1. Go to [Miro App Management](https://miro.com/app/settings/user-profile/apps) → **Create new app**
+2. Set permissions: `boards:read`, `boards:write`
+3. Note the **Client ID** and **Client Secret**
+
+#### Creating the Custom GPT
+
+> Requires ChatGPT Plus. Once created, the GPT can be shared with anyone (including free users).
+
+1. Go to [ChatGPT](https://chat.openai.com) → **Create a GPT**
+2. In the **Actions** section, import the OpenAPI schema from `openapi.json`
+3. Update `servers.url` to your API Gateway URL
+4. Configure **Authentication**:
+   - Type: **OAuth**
+   - Authorization URL: `https://miro.com/oauth/authorize`
+   - Token URL: `https://api.miro.com/v1/oauth/token`
+   - Client ID / Client Secret: from your Miro App
+   - Scope: `boards:read boards:write`
+5. Copy the **Callback URL** provided by ChatGPT
+6. In your Miro App settings, add this Callback URL as a **Redirect URI**
+7. Publish the GPT (e.g., "Anyone with the link")
+
+#### For users outside your Miro organization
+
+Users from other Miro organizations cannot authorize a Draft Miro App. They have two options:
+
+1. **Create their own Miro App** (recommended) — takes 5 minutes, gives them their own Client ID / Secret, then they create their own GPT Action following the steps above
+2. **Publish the Miro App** to the Miro Marketplace — makes it available to all Miro users, but requires Miro review and approval
+
+The OpenAPI schema (`openapi.json`) is also compatible with other LLM frameworks that support function calling (LangChain, Google ADK, etc.).
 
 ## Miro API Sharing Limitations
 
