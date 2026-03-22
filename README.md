@@ -9,8 +9,20 @@ Based on [@llmindset/mcp-miro](https://github.com/evalstate/mcp-miro), with adde
 - By default, only shows boards owned by the authenticated user. Can be configured to filter by team or show all boards.
 - Input validation via Zod schemas.
 - Taking a photo of stickies and asking Claude to create MIRO equivalent works _really_ well.
-- **Remote MCP server** — deploy as AWS Lambda with Streamable HTTP transport. Connect Claude Desktop with just a URL and token — no Node.js, npm, or git installation required.
+- **Remote MCP server** — deploy as AWS Lambda with Streamable HTTP transport and built-in OAuth proxy. Connect Claude Desktop with just a URL — no Node.js, npm, git, or Miro credentials required on the client side.
 - **REST API adapter** — deploy as AWS Lambda to use with ChatGPT (GPT Actions), Gemini, or any LLM with function calling.
+
+## Architecture
+
+```
+Claude Desktop  →  MCP (stdio)              →  MiroClient  →  Miro API   (local)
+Claude Desktop  →  MCP (Streamable HTTP)    →  MiroClient  →  Miro API   (remote, serverless)
+ChatGPT / GPT   →  REST API                 →  MiroClient  →  Miro API   (remote, serverless)
+```
+
+All three paths share the same `MiroClient` business logic — no duplication.
+
+The remote MCP server includes a full **OAuth proxy**: Miro Client ID and Secret are stored server-side in AWS, so end users only need the MCP URL to connect. The OAuth flow (authorization, token exchange) is handled transparently between Claude Desktop, the Lambda, and Miro.
 
 ## Features
 
@@ -18,7 +30,7 @@ Based on [@llmindset/mcp-miro](https://github.com/evalstate/mcp-miro), with adde
 - **Board Contents** — dynamic resource template `miro://board/{boardId}`, with automatic board listing filtered by owner/team
 
 ### Tools
-- **list_boards** — list available boards (with owner/team info)
+- **list_boards** — list available boards with pagination (`limit`/`offset`). Returns total board count so the LLM can paginate through large collections
 - **create_sticky_note** — with customizable color, position, shape (`square`/`rectangle`), and 6 named size presets (see below)
 - **create_shape** — with full control over style (`fillColor`, `borderColor`, etc.), position, and geometry (`width`, `height`, `rotation`)
 - **bulk_create_items** — up to 20 items in a single transaction
@@ -71,21 +83,51 @@ node build/index.js --token YOUR_TOKEN --no-filter
 
 ## Remote MCP Server (Claude Desktop — no installation required)
 
-If someone has already deployed the MCP server to AWS, you can connect Claude Desktop with just a URL and your Miro token — no Node.js, npm, or git needed.
+The MCP server can be deployed to AWS Lambda with Streamable HTTP transport and a built-in OAuth proxy. End users connect from Claude Desktop with just a URL — no Node.js, npm, git, or Miro credentials needed on the client side.
 
-### Prerequisites
+### How it works
 
-1. **Miro OAuth Token** — from your Miro App (see [Miro App Management](https://miro.com/app/settings/user-profile/apps))
-2. **Claude Desktop** — with Developer Tools enabled (Settings → Developer)
-3. **MCP server URL** — provided by whoever deployed the server (e.g., `https://xxx.execute-api.eu-central-1.amazonaws.com/prod/mcp`)
+```
+Claude Desktop                     AWS Lambda                    Miro
+      |                               |                           |
+      |--- POST /mcp ---------------->|                           |
+      |<-- 401 + WWW-Authenticate     |                           |
+      |                               |                           |
+      |--- discover OAuth metadata -->|                           |
+      |<-- { authorization_endpoint,  |                           |
+      |      token_endpoint, ... }    |                           |
+      |                               |                           |
+      |--- open browser --------------|-------------------------->|
+      |                               |    Miro login + authorize |
+      |<-- redirect with auth code ---|<--------------------------|
+      |                               |                           |
+      |--- POST /oauth/token -------->|--- proxy to Miro -------->|
+      |    (code)                     |   (+ inject client_id     |
+      |<-- { access_token } ----------|<-- + client_secret) ------|
+      |                               |                           |
+      |--- POST /mcp (Bearer) ------->|--- Miro API calls ------->|
+      |<-- MCP response               |<-- board data ------------|
+```
 
-### Configure Claude Desktop
+Key points:
+- **OAuth proxy** — Miro Client ID and Secret are stored server-side in AWS. The Lambda injects them during token exchange, so users never see or handle these credentials.
+- **Dynamic Client Registration (RFC 7591)** — Claude Desktop automatically registers as an OAuth client.
+- **Stateless** — each Lambda invocation creates a fresh MCP server. No session state, no DynamoDB, no ElastiCache.
+- **Auto-detection** — boards are automatically filtered to those owned by the authenticated user.
 
-Open the config file:
-- Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- Windows: `%APPDATA%/Claude/claude_desktop_config.json`
+### Connecting from Claude Desktop
 
-Add the following:
+1. Open Claude Desktop → **Settings** → **Integrations** → **Add custom connector** (or **Add More**)
+2. Enter the MCP server URL: `https://YOUR_API_GATEWAY_URL/prod/mcp`
+3. Click **Connect** — a browser window opens for Miro authorization
+4. Authorize the Miro App — Claude Desktop receives a token automatically
+5. Done — Miro tools appear in your chat
+
+> No API keys, tokens, or credentials needed on the client side. The OAuth flow handles everything.
+
+### Connecting via config file (alternative)
+
+If you already have a Miro OAuth token, you can configure Claude Desktop directly:
 
 ```json
 {
@@ -100,23 +142,64 @@ Add the following:
 }
 ```
 
-Restart Claude Desktop. You should see the Miro tools available in the chat.
+Config file location:
+- Mac: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- Windows: `%APPDATA%/Claude/claude_desktop_config.json`
 
 ### Deploying the Remote MCP Server
 
-To deploy the Streamable HTTP MCP server to your own AWS account:
+To deploy to your own AWS account:
 
-1. Build the MCP Lambda bundle:
+#### Prerequisites
+
+1. **AWS CLI** and **AWS SAM CLI** installed and configured
+2. **Miro App** — create one at [Miro App Management](https://miro.com/app/settings/user-profile/apps):
+   - Set permissions: `boards:read`, `boards:write`
+   - Add the Claude Desktop redirect URI to your Miro App's **Redirect URIs**
+   - Note the **Client ID** and **Client Secret**
+3. **S3 bucket** for SAM deployment artifacts
+
+#### Deploy
+
+1. Build the Lambda bundles:
 ```bash
-npm run build:mcp-lambda
+npm ci
+npm run build:lambdas
 ```
 
 2. Deploy with AWS SAM:
 ```bash
-sam deploy --guided
+sam build --no-use-container
+sam deploy \
+  --stack-name miro-mcp-rest-api \
+  --s3-bucket YOUR_SAM_BUCKET \
+  --capabilities CAPABILITY_IAM \
+  --parameter-overrides \
+    MiroTeamId=YOUR_TEAM_ID \
+    MiroClientId=YOUR_MIRO_CLIENT_ID \
+    MiroClientSecret=YOUR_MIRO_CLIENT_SECRET
 ```
 
-The `McpUrl` output will show the endpoint URL. Share it with your team — each user provides their own Miro token in the `Authorization` header.
+- `MiroTeamId` — optional, filters boards for the REST API Lambda
+- `MiroClientId` / `MiroClientSecret` — required for the OAuth proxy (MCP Lambda only)
+
+The stack outputs:
+- `McpUrl` — MCP Streamable HTTP endpoint (share with Claude Desktop users)
+- `ApiUrl` — REST API endpoint (for ChatGPT GPT Actions)
+
+#### CI/CD Deployment
+
+The project includes a GitHub Actions workflow (`deploy-lambda.yml`) for automated deployment. Configure these GitHub Secrets:
+
+| Secret | Description |
+|--------|-------------|
+| `AWS_ROLE_ARN` | IAM role ARN for OIDC-based AWS authentication |
+| `SAM_BUCKET` | S3 bucket for SAM deployment artifacts |
+| `MIRO_TEAM_ID` | Miro team ID (for REST API board filtering) |
+| `MCP_MIRO_CLIENT_ID` | Miro App Client ID (for OAuth proxy) |
+| `MCP_MIRO_CLIENT_SECRET` | Miro App Client Secret (for OAuth proxy) |
+
+Trigger the workflow manually via GitHub Actions → "Deploy REST API" → Run workflow.
 
 ---
 
@@ -212,16 +295,6 @@ Or use environment variables instead of arguments:
 
 In addition to MCP (for Claude), this project includes a REST API adapter that can be deployed as an AWS Lambda. This makes the same Miro tools available to ChatGPT users via GPT Actions, or any LLM that supports OpenAPI / function calling.
 
-### Architecture
-
-```
-Claude Desktop  →  MCP (stdio)              →  MiroClient  →  Miro API
-Claude Desktop  →  MCP (Streamable HTTP)    →  MiroClient  →  Miro API   (remote, serverless)
-ChatGPT / GPT   →  REST API                 →  MiroClient  →  Miro API
-```
-
-All three paths share the same `MiroClient` business logic — no duplication.
-
 ### Authentication
 
 The REST API uses **Miro OAuth per user**. Each request must include a valid Miro OAuth token in the `Authorization: Bearer <token>` header. There is no shared API key — every user authenticates with their own Miro account.
@@ -241,21 +314,6 @@ When used with ChatGPT GPT Actions, the OAuth flow is handled automatically: use
 | `POST` | `/boards/:boardId/items/bulk` | Bulk create items (max 20) |
 | `POST` | `/boards/:boardId/shapes` | Create shape |
 | `PATCH` | `/boards/:boardId/sharing` | Update sharing policy |
-
-### Deployment (AWS)
-
-1. Build the Lambda bundle:
-```bash
-npm run build:lambda
-```
-
-2. Deploy with AWS SAM:
-```bash
-sam deploy --guided
-```
-
-Optional environment variable:
-- `MIRO_TEAM_ID` — filter boards by team (if not set, auto-detects user's boards)
 
 ### Setting up GPT Actions (ChatGPT)
 
@@ -317,15 +375,17 @@ The Miro REST API v2 has important limitations regarding board sharing that diff
 
 ## CI/CD
 
-The project uses GitHub Actions for continuous integration and publishing:
+The project uses GitHub Actions for continuous integration, publishing, and deployment:
 
 - **CI** (`ci.yml`) — runs on every push to `main` and on pull requests: installs dependencies, builds, runs tests.
+- **Security** (`security.yml`) — runs on every push to `main`, on pull requests, and weekly: `npm audit` and CodeQL analysis.
 - **Publish** (`publish.yml`) — triggers on git tags matching `v*`: runs tests and publishes to npm.
+- **Deploy** (`deploy-lambda.yml`) — manual trigger (`workflow_dispatch`): builds Lambda bundles, runs tests, deploys to AWS via SAM.
 
 ### Publishing a new version
 
 ```bash
-npm version patch   # 0.2.0 → 0.2.1 (or: minor, major)
+npm version patch   # 0.9.7 → 0.9.8 (or: minor, major)
 git push && git push --tags
 ```
 
