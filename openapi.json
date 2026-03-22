@@ -204,10 +204,10 @@
                 "required": ["content"],
                 "properties": {
                   "content": { "type": "string", "description": "Text content of the sticky note" },
-                  "color": { "type": "string", "default": "yellow", "description": "Color: gray, light_yellow, yellow, orange, light_green, green, dark_green, cyan, light_pink, pink, violet, red, light_blue, blue, dark_blue, black" },
+                  "color": { "type": "string", "default": "yellow", "enum": ["gray", "light_yellow", "yellow", "orange", "light_green", "green", "dark_green", "cyan", "light_pink", "pink", "violet", "red", "light_blue", "blue", "dark_blue", "black"], "description": "Color of the sticky note" },
                   "x": { "type": "number", "default": 0, "description": "X position on the board" },
                   "y": { "type": "number", "default": 0, "description": "Y position on the board" },
-                  "size": { "type": "string", "description": "Size preset: klitzeklein, klein, medium, mittelgroß, groß, riesengroß" },
+                  "size": { "type": "string", "enum": ["klitzeklein", "klein", "medium", "mittelgroß", "groß", "riesengroß"], "description": "Named size preset. Sets shape to rectangle automatically. Sizes: klitzeklein=325px, klein=650px, medium=1300px, mittelgroß=2600px, groß=5600px, riesengroß=11200px" },
                   "width": { "type": "number", "description": "Custom width (overrides size preset)" },
                   "shape": { "type": "string", "enum": ["square", "rectangle"], "default": "square" },
                   "parentId": { "type": "string", "description": "ID of a parent frame to place the sticky note inside" }
@@ -258,7 +258,7 @@
                       "type": "object",
                       "required": ["type"],
                       "properties": {
-                        "type": { "type": "string", "description": "Item type, e.g. 'sticky_note', 'shape'" },
+                        "type": { "type": "string", "enum": ["app_card", "text", "shape", "sticky_note", "image", "document", "card", "frame", "embed"], "description": "Type of item to create" },
                         "data": { "type": "object", "description": "Item data (content, shape, etc.)" },
                         "style": { "type": "object", "description": "Style properties" },
                         "position": {
@@ -283,8 +283,8 @@
                             "id": { "type": "string" }
                           }
                         },
-                        "size": { "type": "string", "description": "Size preset for sticky notes" },
-                        "color": { "type": "string", "description": "Shorthand for fillColor in style" }
+                        "size": { "type": "string", "enum": ["klitzeklein", "klein", "medium", "mittelgroß", "groß", "riesengroß"], "description": "Size preset for sticky notes (auto-sets shape to rectangle)" },
+                        "color": { "type": "string", "enum": ["gray", "light_yellow", "yellow", "orange", "light_green", "green", "dark_green", "cyan", "light_pink", "pink", "violet", "red", "light_blue", "blue", "dark_blue", "black"], "description": "Shorthand for style.fillColor" }
                       }
                     }
                   }
@@ -329,7 +329,7 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "shape": { "type": "string", "default": "rectangle", "description": "Shape type: rectangle, circle, triangle, wedge_round_rectangle_callout, etc." },
+                  "shape": { "type": "string", "default": "rectangle", "enum": ["rectangle", "round_rectangle", "circle", "triangle", "rhombus", "parallelogram", "trapezoid", "pentagon", "hexagon", "octagon", "wedge_round_rectangle_callout", "star", "cloud", "cross", "can", "right_arrow", "left_arrow", "left_right_arrow", "left_brace", "right_brace", "flow_chart_connector", "flow_chart_magnetic_disk", "flow_chart_input_output", "flow_chart_decision", "flow_chart_delay", "flow_chart_display", "flow_chart_document", "flow_chart_magnetic_drum", "flow_chart_internal_storage", "flow_chart_manual_input", "flow_chart_manual_operation", "flow_chart_merge", "flow_chart_multidocuments", "flow_chart_note_curly_left", "flow_chart_note_curly_right", "flow_chart_note_square", "flow_chart_offpage_connector", "flow_chart_or", "flow_chart_predefined_process", "flow_chart_predefined_process_2", "flow_chart_preparation", "flow_chart_process", "flow_chart_online_storage", "flow_chart_summing_junction", "flow_chart_terminator"], "description": "Shape type" },
                   "content": { "type": "string", "description": "Text content inside the shape" },
                   "position": {
                     "type": "object",
@@ -347,7 +347,23 @@
                       "rotation": { "type": "number" }
                     }
                   },
-                  "style": { "type": "object", "description": "Style properties (fillColor, borderColor, etc.)" }
+                  "style": {
+                    "type": "object",
+                    "description": "Style properties",
+                    "properties": {
+                      "borderColor": { "type": "string" },
+                      "borderOpacity": { "type": "number" },
+                      "borderStyle": { "type": "string", "enum": ["normal", "dotted", "dashed"] },
+                      "borderWidth": { "type": "number" },
+                      "color": { "type": "string", "description": "Text color" },
+                      "fillColor": { "type": "string" },
+                      "fillOpacity": { "type": "number" },
+                      "fontFamily": { "type": "string" },
+                      "fontSize": { "type": "number" },
+                      "textAlign": { "type": "string", "enum": ["left", "center", "right"] },
+                      "textAlignVertical": { "type": "string", "enum": ["top", "middle", "bottom"] }
+                    }
+                  }
                 }
               }
             }
@@ -386,10 +402,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "access": { "type": "string", "description": "Board access level: private, view, edit, comment" },
-                  "teamAccess": { "type": "string", "description": "Team access level" },
-                  "organizationAccess": { "type": "string", "description": "Organization access level" },
-                  "inviteToAccountAndBoardLinkAccess": { "type": "string", "description": "Link sharing access level: viewer, commenter, editor, no_access" }
+                  "access": { "type": "string", "enum": ["private", "view", "comment", "edit"], "description": "Board access level" },
+                  "teamAccess": { "type": "string", "enum": ["private", "view", "comment", "edit"], "description": "Team access level" },
+                  "organizationAccess": { "type": "string", "enum": ["private", "view", "comment", "edit"], "description": "Organization access level" },
+                  "inviteToAccountAndBoardLinkAccess": { "type": "string", "enum": ["viewer", "commenter", "editor", "no_access"], "description": "Access level for anyone with the board link" }
                 }
               }
             }
@@ -486,10 +502,10 @@
       "SharingPolicy": {
         "type": "object",
         "properties": {
-          "access": { "type": "string" },
-          "inviteToAccountAndBoardLinkAccess": { "type": "string" },
-          "organizationAccess": { "type": "string" },
-          "teamAccess": { "type": "string" }
+          "access": { "type": "string", "enum": ["private", "view", "comment", "edit"] },
+          "inviteToAccountAndBoardLinkAccess": { "type": "string", "enum": ["viewer", "commenter", "editor", "no_access"] },
+          "organizationAccess": { "type": "string", "enum": ["private", "view", "comment", "edit"] },
+          "teamAccess": { "type": "string", "enum": ["private", "view", "comment", "edit"] }
         }
       },
       "PermissionsPolicy": {
@@ -504,7 +520,7 @@
         "properties": {
           "id": { "type": "string" },
           "name": { "type": "string" },
-          "role": { "type": "string" },
+          "role": { "type": "string", "enum": ["owner", "coowner", "editor", "commenter", "viewer"] },
           "type": { "type": "string" }
         }
       }
