@@ -1,0 +1,516 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "NetzSchule Miro MCP REST API",
+    "description": "REST API for managing Miro boards — create sticky notes, shapes, manage sharing, and more. Used as a backend for ChatGPT GPT Actions.",
+    "version": "0.4.0"
+  },
+  "servers": [
+    {
+      "url": "https://cb9i0uzdyi.execute-api.eu-central-1.amazonaws.com/prod",
+      "description": "Production (AWS Lambda)"
+    }
+  ],
+  "paths": {
+    "/boards": {
+      "get": {
+        "operationId": "listBoards",
+        "summary": "List Miro boards",
+        "description": "Returns a paginated list of Miro boards accessible to the configured token. Max 50 boards per page.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "default": 50, "maximum": 50 },
+            "description": "Number of boards to return (max 50)"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": { "type": "integer", "default": 0 },
+            "description": "Offset for pagination"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated list of boards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Board" }
+                    },
+                    "total": { "type": "integer" },
+                    "size": { "type": "integer" },
+                    "offset": { "type": "integer" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/boards/{boardId}/frames": {
+      "get": {
+        "operationId": "getFrames",
+        "summary": "Get frames on a board",
+        "description": "Returns all frames on the specified board.",
+        "parameters": [
+          { "$ref": "#/components/parameters/boardId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of frames",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "frames": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Item" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/boards/{boardId}/frames/{frameId}/items": {
+      "get": {
+        "operationId": "getItemsInFrame",
+        "summary": "Get items inside a frame",
+        "description": "Returns all items contained within the specified frame.",
+        "parameters": [
+          { "$ref": "#/components/parameters/boardId" },
+          {
+            "name": "frameId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The ID of the frame"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of items in the frame",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Item" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/boards/{boardId}/access": {
+      "get": {
+        "operationId": "getBoardAccess",
+        "summary": "Get board access and sharing details",
+        "description": "Returns the sharing policy, permissions policy, and list of members for the specified board.",
+        "parameters": [
+          { "$ref": "#/components/parameters/boardId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Board access details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "board": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "name": { "type": "string" }
+                      }
+                    },
+                    "sharingPolicy": { "$ref": "#/components/schemas/SharingPolicy" },
+                    "permissionsPolicy": { "$ref": "#/components/schemas/PermissionsPolicy" },
+                    "members": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Member" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/boards/{boardId}/share-link": {
+      "get": {
+        "operationId": "getBoardShareLink",
+        "summary": "Get board share link",
+        "description": "Returns the view link and link access level for the specified board.",
+        "parameters": [
+          { "$ref": "#/components/parameters/boardId" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Board share link",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "board": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "name": { "type": "string" }
+                      }
+                    },
+                    "viewLink": { "type": "string" },
+                    "linkAccess": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/boards/{boardId}/sticky-notes": {
+      "post": {
+        "operationId": "createStickyNote",
+        "summary": "Create a sticky note",
+        "description": "Creates a sticky note on the specified board. Use size presets (klitzeklein, klein, medium, mittelgroß, groß, riesengroß) for consistent sizing.",
+        "parameters": [
+          { "$ref": "#/components/parameters/boardId" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["content"],
+                "properties": {
+                  "content": { "type": "string", "description": "Text content of the sticky note" },
+                  "color": { "type": "string", "default": "yellow", "description": "Color: gray, light_yellow, yellow, orange, light_green, green, dark_green, cyan, light_pink, pink, violet, red, light_blue, blue, dark_blue, black" },
+                  "x": { "type": "number", "default": 0, "description": "X position on the board" },
+                  "y": { "type": "number", "default": 0, "description": "Y position on the board" },
+                  "size": { "type": "string", "description": "Size preset: klitzeklein, klein, medium, mittelgroß, groß, riesengroß" },
+                  "width": { "type": "number", "description": "Custom width (overrides size preset)" },
+                  "shape": { "type": "string", "enum": ["square", "rectangle"], "default": "square" },
+                  "parentId": { "type": "string", "description": "ID of a parent frame to place the sticky note inside" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Sticky note created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "shape": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/boards/{boardId}/items/bulk": {
+      "post": {
+        "operationId": "bulkCreateItems",
+        "summary": "Bulk create items",
+        "description": "Creates up to 20 items (sticky notes, shapes, etc.) on the board in a single request. For sticky notes, you can use the 'size' field with presets and 'color' as a shorthand for fillColor.",
+        "parameters": [
+          { "$ref": "#/components/parameters/boardId" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["items"],
+                "properties": {
+                  "items": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "items": {
+                      "type": "object",
+                      "required": ["type"],
+                      "properties": {
+                        "type": { "type": "string", "description": "Item type, e.g. 'sticky_note', 'shape'" },
+                        "data": { "type": "object", "description": "Item data (content, shape, etc.)" },
+                        "style": { "type": "object", "description": "Style properties" },
+                        "position": {
+                          "type": "object",
+                          "properties": {
+                            "x": { "type": "number" },
+                            "y": { "type": "number" },
+                            "origin": { "type": "string" }
+                          }
+                        },
+                        "geometry": {
+                          "type": "object",
+                          "properties": {
+                            "width": { "type": "number" },
+                            "height": { "type": "number" },
+                            "rotation": { "type": "number" }
+                          }
+                        },
+                        "parent": {
+                          "type": "object",
+                          "properties": {
+                            "id": { "type": "string" }
+                          }
+                        },
+                        "size": { "type": "string", "description": "Size preset for sticky notes" },
+                        "color": { "type": "string", "description": "Shorthand for fillColor in style" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Items created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "created": { "type": "integer" },
+                    "items": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Item" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/boards/{boardId}/shapes": {
+      "post": {
+        "operationId": "createShape",
+        "summary": "Create a shape",
+        "description": "Creates a shape (rectangle, circle, triangle, etc.) on the specified board.",
+        "parameters": [
+          { "$ref": "#/components/parameters/boardId" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "shape": { "type": "string", "default": "rectangle", "description": "Shape type: rectangle, circle, triangle, wedge_round_rectangle_callout, etc." },
+                  "content": { "type": "string", "description": "Text content inside the shape" },
+                  "position": {
+                    "type": "object",
+                    "properties": {
+                      "x": { "type": "number", "default": 0 },
+                      "y": { "type": "number", "default": 0 },
+                      "origin": { "type": "string" }
+                    }
+                  },
+                  "geometry": {
+                    "type": "object",
+                    "properties": {
+                      "width": { "type": "number", "default": 200 },
+                      "height": { "type": "number", "default": 200 },
+                      "rotation": { "type": "number" }
+                    }
+                  },
+                  "style": { "type": "object", "description": "Style properties (fillColor, borderColor, etc.)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Shape created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string" },
+                    "shape": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/boards/{boardId}/sharing": {
+      "patch": {
+        "operationId": "updateBoardSharing",
+        "summary": "Update board sharing policy",
+        "description": "Updates the sharing policy for the specified board. At least one field must be provided.",
+        "parameters": [
+          { "$ref": "#/components/parameters/boardId" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "access": { "type": "string", "description": "Board access level: private, view, edit, comment" },
+                  "teamAccess": { "type": "string", "description": "Team access level" },
+                  "organizationAccess": { "type": "string", "description": "Organization access level" },
+                  "inviteToAccountAndBoardLinkAccess": { "type": "string", "description": "Link sharing access level: viewer, commenter, editor, no_access" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated sharing policy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "board": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string" },
+                        "name": { "type": "string" }
+                      }
+                    },
+                    "sharingPolicy": { "$ref": "#/components/schemas/SharingPolicy" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "parameters": {
+      "boardId": {
+        "name": "boardId",
+        "in": "path",
+        "required": true,
+        "schema": { "type": "string" },
+        "description": "The ID of the Miro board"
+      }
+    },
+    "schemas": {
+      "Board": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "owner": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "type": { "type": "string" }
+            }
+          },
+          "team": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" }
+            }
+          },
+          "createdAt": { "type": "string" }
+        }
+      },
+      "Item": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "type": { "type": "string" },
+          "data": { "type": "object" },
+          "position": {
+            "type": "object",
+            "properties": {
+              "x": { "type": "number" },
+              "y": { "type": "number" }
+            }
+          },
+          "geometry": {
+            "type": "object",
+            "properties": {
+              "width": { "type": "number" },
+              "height": { "type": "number" }
+            }
+          }
+        }
+      },
+      "SharingPolicy": {
+        "type": "object",
+        "properties": {
+          "access": { "type": "string" },
+          "inviteToAccountAndBoardLinkAccess": { "type": "string" },
+          "organizationAccess": { "type": "string" },
+          "teamAccess": { "type": "string" }
+        }
+      },
+      "PermissionsPolicy": {
+        "type": "object",
+        "properties": {
+          "copyAccess": { "type": "string" },
+          "sharingAccess": { "type": "string" }
+        }
+      },
+      "Member": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "role": { "type": "string" },
+          "type": { "type": "string" }
+        }
+      }
+    }
+  },
+  "security": [
+    { "BearerAuth": [] }
+  ]
+}
