@@ -64,8 +64,11 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
   }
 
   try {
+    console.log('[lambda] init start');
     await init();
+    console.log('[lambda] init done');
   } catch (err: unknown) {
+    console.error('[lambda] init error', err);
     return {
       statusCode: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -104,5 +107,8 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     queryStringParameters: event.queryStringParameters,
   };
 
-  return handleRequest(req, miroClient!, boardFilter);
+  console.log('[lambda] handleRequest', req.method, req.path);
+  const result = await handleRequest(req, miroClient!, boardFilter);
+  console.log('[lambda] response', result.statusCode);
+  return result;
 };
