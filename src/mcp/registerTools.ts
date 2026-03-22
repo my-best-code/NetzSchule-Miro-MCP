@@ -1,5 +1,6 @@
 import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { MiroClient, type BoardFilterParams } from "../MiroClient.js";
+import { z } from "zod";
 import {
   createStickyNoteSchema, bulkCreateItemsSchema, getFramesSchema,
   getItemsInFrameSchema, createShapeSchema, getBoardAccessSchema,
@@ -50,22 +51,30 @@ export function registerMcpTools(
   server.registerTool(
     "list_boards",
     {
-      description: "List all available Miro boards and their IDs",
+      description:
+        "List available Miro boards (paginated). Returns up to `limit` boards starting from `offset`. " +
+        "Response includes total board count — use offset to paginate through all boards. " +
+        "First call with defaults to see how many boards exist, then paginate as needed.",
+      inputSchema: {
+        limit: z.number().int().min(1).max(50).default(50).describe("Max boards to return (1-50, default 50)"),
+        offset: z.number().int().min(0).default(0).describe("Number of boards to skip (for pagination, default 0)"),
+      },
     },
-    async () => {
-      const boards = await miroClient.getBoards(boardFilter);
+    async ({ limit, offset }) => {
+      const response = await miroClient.getBoardsPage(boardFilter, limit, offset);
       const filterInfo = boardFilter.ownerId
         ? ' (filtered: owned by me)'
         : boardFilter.teamId
           ? ` (filtered: team ${boardFilter.teamId})`
           : '';
+      const paginationInfo = `Showing ${response.data.length} of ${response.total} boards (offset: ${offset})${filterInfo}`;
       return {
         content: [
           {
             type: "text",
-            text: `Here are the available Miro boards${filterInfo}:`,
+            text: paginationInfo,
           },
-          ...boards.map((b) => ({
+          ...response.data.map((b) => ({
             type: "text" as const,
             text: `Board ID: ${b.id}, Name: ${b.name}${b.owner ? `, Owner: ${b.owner.name}` : ''}${b.team ? `, Team: ${b.team.name}` : ''}`,
           })),
