@@ -1,5 +1,4 @@
 
-import fetch from 'node-fetch';
 
 const PAGE_LIMIT = 50;
 

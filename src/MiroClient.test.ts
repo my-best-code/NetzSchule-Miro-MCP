@@ -1,15 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-
-// Mock node-fetch — factory must not reference outer variables (hoisted)
-vi.mock('node-fetch', () => {
-  const fn = vi.fn();
-  return { default: fn };
-});
-
-import fetch from 'node-fetch';
 import { MiroClient } from './MiroClient.js';
 
-const mockFetch = vi.mocked(fetch);
+const mockFetch = vi.fn();
 
 function jsonResponse(data: any, ok = true, status = 200) {
   return {
@@ -27,6 +19,7 @@ describe('MiroClient', () => {
   beforeEach(() => {
     client = new MiroClient('test-token');
     mockFetch.mockReset();
+    vi.stubGlobal('fetch', mockFetch);
   });
 
   describe('getTokenContext', () => {
