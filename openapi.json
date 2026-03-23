@@ -60,7 +60,13 @@
         "summary": "Get frames on a board",
         "description": "Returns all frames on the specified board.",
         "parameters": [
-          { "$ref": "#/components/parameters/boardId" }
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The ID of the Miro board"
+          }
         ],
         "responses": {
           "200": {
@@ -88,7 +94,13 @@
         "summary": "Get items inside a frame",
         "description": "Returns all items contained within the specified frame.",
         "parameters": [
-          { "$ref": "#/components/parameters/boardId" },
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The ID of the Miro board"
+          },
           {
             "name": "frameId",
             "in": "path",
@@ -123,7 +135,13 @@
         "summary": "Get board access and sharing details",
         "description": "Returns the sharing policy, permissions policy, and list of members for the specified board.",
         "parameters": [
-          { "$ref": "#/components/parameters/boardId" }
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The ID of the Miro board"
+          }
         ],
         "responses": {
           "200": {
@@ -160,7 +178,13 @@
         "summary": "Get board share link",
         "description": "Returns the view link and link access level for the specified board.",
         "parameters": [
-          { "$ref": "#/components/parameters/boardId" }
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The ID of the Miro board"
+          }
         ],
         "responses": {
           "200": {
@@ -193,7 +217,13 @@
         "summary": "Create a sticky note",
         "description": "Creates a sticky note on the specified board. Use size presets (klitzeklein, klein, medium, mittelgroß, groß, riesengroß) for consistent sizing.",
         "parameters": [
-          { "$ref": "#/components/parameters/boardId" }
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The ID of the Miro board"
+          }
         ],
         "requestBody": {
           "required": true,
@@ -240,7 +270,13 @@
         "summary": "Bulk create items",
         "description": "Creates up to 20 items (sticky notes, shapes, etc.) on the board in a single request. For sticky notes, you can use the 'size' field with presets and 'color' as a shorthand for fillColor.",
         "parameters": [
-          { "$ref": "#/components/parameters/boardId" }
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The ID of the Miro board"
+          }
         ],
         "requestBody": {
           "required": true,
@@ -320,7 +356,13 @@
         "summary": "Create a shape",
         "description": "Creates a shape (rectangle, circle, triangle, etc.) on the specified board.",
         "parameters": [
-          { "$ref": "#/components/parameters/boardId" }
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The ID of the Miro board"
+          }
         ],
         "requestBody": {
           "required": true,
@@ -393,7 +435,13 @@
         "summary": "Update board sharing policy",
         "description": "Updates the sharing policy for the specified board. At least one field must be provided.",
         "parameters": [
-          { "$ref": "#/components/parameters/boardId" }
+          {
+            "name": "boardId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "The ID of the Miro board"
+          }
         ],
         "requestBody": {
           "required": true,
@@ -450,15 +498,6 @@
             }
           }
         }
-      }
-    },
-    "parameters": {
-      "boardId": {
-        "name": "boardId",
-        "in": "path",
-        "required": true,
-        "schema": { "type": "string" },
-        "description": "The ID of the Miro board"
       }
     },
     "schemas": {
