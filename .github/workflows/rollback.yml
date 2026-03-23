@@ -1,0 +1,72 @@
+name: Rollback Lambda
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Rollback target'
+        required: true
+        type: choice
+        options:
+          - stable
+          - prev-stable
+          - specific-version
+      version:
+        description: 'Version number (only for specific-version)'
+        required: false
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  rollback:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-central-1
+
+      - name: Rollback live alias
+        run: |
+          REST_FN=$(aws cloudformation describe-stack-resource \
+            --stack-name miro-mcp-rest-api \
+            --logical-resource-id MiroRestFunction \
+            --query "StackResourceDetail.PhysicalResourceId" \
+            --output text)
+          MCP_FN=$(aws cloudformation describe-stack-resource \
+            --stack-name miro-mcp-rest-api \
+            --logical-resource-id MiroMcpFunction \
+            --query "StackResourceDetail.PhysicalResourceId" \
+            --output text)
+
+          TARGET="${{ inputs.target }}"
+
+          for FN in "$REST_FN" "$MCP_FN"; do
+            echo "=== $FN ==="
+
+            if [ "$TARGET" = "specific-version" ]; then
+              TARGET_VER="${{ inputs.version }}"
+              if [ -z "$TARGET_VER" ]; then
+                echo "ERROR: version input is required for specific-version"
+                exit 1
+              fi
+            else
+              TARGET_VER=$(aws lambda get-alias \
+                --function-name "$FN" \
+                --name "$TARGET" \
+                --query "FunctionVersion" \
+                --output text)
+              echo "alias '$TARGET' → version $TARGET_VER"
+            fi
+
+            aws lambda update-alias \
+              --function-name "$FN" \
+              --name live \
+              --function-version "$TARGET_VER" \
+              --output none
+
+            echo "live → version $TARGET_VER (done)"
+          done

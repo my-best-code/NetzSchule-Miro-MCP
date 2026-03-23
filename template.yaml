@@ -45,6 +45,7 @@ Resources:
     Properties:
       Handler: lambda.handler
       CodeUri: dist/
+      AutoPublishAlias: live
       ReservedConcurrentExecutions: 50
       Environment:
         Variables:
@@ -110,6 +111,7 @@ Resources:
     Properties:
       Handler: mcp-lambda.handler
       CodeUri: dist/
+      AutoPublishAlias: live
       ReservedConcurrentExecutions: 50
       Environment:
         Variables:

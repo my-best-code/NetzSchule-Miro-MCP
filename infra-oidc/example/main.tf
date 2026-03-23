@@ -117,9 +117,19 @@ resource "aws_iam_policy" "sam_deploy" {
           "lambda:DeleteFunction", "lambda:GetFunction", "lambda:GetFunctionConfiguration",
           "lambda:ListTags", "lambda:TagResource", "lambda:UntagResource",
           "lambda:PutFunctionConcurrency", "lambda:DeleteFunctionConcurrency",
-          "lambda:AddPermission", "lambda:RemovePermission"
+          "lambda:AddPermission", "lambda:RemovePermission",
+          "lambda:PublishVersion", "lambda:ListVersionsByFunction"
         ]
         Resource = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:miro-mcp-*"
+      },
+      {
+        Sid    = "LambdaAliases"
+        Effect = "Allow"
+        Action = [
+          "lambda:CreateAlias", "lambda:UpdateAlias", "lambda:DeleteAlias",
+          "lambda:GetAlias", "lambda:ListAliases"
+        ]
+        Resource = "arn:aws:lambda:${var.aws_region}:${var.aws_account_id}:function:miro-mcp-*:*"
       },
       {
         Sid      = "APIGateway"
