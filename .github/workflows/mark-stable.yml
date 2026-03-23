@@ -1,0 +1,65 @@
+name: Mark Current Version as Stable
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  mark-stable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: eu-central-1
+
+      - name: Promote live → stable, stable → prev-stable
+        run: |
+          REST_FN=$(aws cloudformation describe-stack-resource \
+            --stack-name miro-mcp-rest-api \
+            --logical-resource-id MiroRestFunction \
+            --query "StackResourceDetail.PhysicalResourceId" \
+            --output text)
+          MCP_FN=$(aws cloudformation describe-stack-resource \
+            --stack-name miro-mcp-rest-api \
+            --logical-resource-id MiroMcpFunction \
+            --query "StackResourceDetail.PhysicalResourceId" \
+            --output text)
+
+          for FN in "$REST_FN" "$MCP_FN"; do
+            echo "=== $FN ==="
+
+            LIVE_VER=$(aws lambda get-alias \
+              --function-name "$FN" \
+              --name live \
+              --query "FunctionVersion" \
+              --output text)
+            echo "live → version $LIVE_VER"
+
+            # Move stable → prev-stable (if stable exists)
+            if STABLE_VER=$(aws lambda get-alias --function-name "$FN" --name stable \
+                --query "FunctionVersion" --output text 2>/dev/null); then
+              echo "stable → version $STABLE_VER, moving to prev-stable"
+              if aws lambda get-alias --function-name "$FN" --name prev-stable &>/dev/null; then
+                aws lambda update-alias --function-name "$FN" --name prev-stable \
+                  --function-version "$STABLE_VER" --output none
+              else
+                aws lambda create-alias --function-name "$FN" --name prev-stable \
+                  --function-version "$STABLE_VER" --output none
+              fi
+            fi
+
+            # Update stable → current live
+            if aws lambda get-alias --function-name "$FN" --name stable &>/dev/null; then
+              aws lambda update-alias --function-name "$FN" --name stable \
+                --function-version "$LIVE_VER" --output none
+            else
+              aws lambda create-alias --function-name "$FN" --name stable \
+                --function-version "$LIVE_VER" --output none
+            fi
+
+            echo "stable now → version $LIVE_VER"
+          done
