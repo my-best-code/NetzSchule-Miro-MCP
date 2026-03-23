@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — NetzSchule Miro MCP</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      max-width: 720px;
+      margin: 40px auto;
+      padding: 0 20px;
+      line-height: 1.6;
+      color: #333;
+    }
+    h1 { font-size: 1.8em; margin-bottom: 0.2em; }
+    h2 { font-size: 1.3em; margin-top: 1.5em; }
+    .updated { color: #666; font-size: 0.9em; margin-bottom: 2em; }
+    ul { padding-left: 1.5em; }
+    a { color: #0066cc; }
+  </style>
+</head>
+<body>
+
+<h1>Privacy Policy</h1>
+<p class="updated">Last updated: March 23, 2026</p>
+
+<p>This privacy policy describes how the <strong>NetzSchule Miro MCP</strong> service ("the Service") handles user data when accessed via ChatGPT GPT Actions, Claude Desktop, or any other MCP/REST client.</p>
+
+<h2>What the Service does</h2>
+<p>The Service acts as a bridge between AI assistants (ChatGPT, Claude, etc.) and the <a href="https://miro.com">Miro</a> whiteboard platform. It allows AI assistants to list boards, create sticky notes, shapes, and manage board sharing on your behalf.</p>
+
+<h2>Authentication</h2>
+<p>The Service uses <strong>Miro OAuth 2.0</strong> for authentication. When you connect, you authorize the Service to access your Miro account through Miro's standard OAuth flow. The Service acts as an OAuth proxy: your Miro credentials (username/password) are never seen or stored by the Service.</p>
+
+<h2>Data collection and storage</h2>
+<p>The Service is <strong>stateless</strong> and does <strong>not</strong> store any user data:</p>
+<ul>
+  <li><strong>No database</strong> — there is no persistent storage of any kind.</li>
+  <li><strong>No token storage</strong> — OAuth access tokens are passed through per-request and are not saved.</li>
+  <li><strong>No user profiles</strong> — no account information, names, emails, or usage history is recorded.</li>
+  <li><strong>No cookies or tracking</strong> — the Service does not use cookies, analytics, or tracking mechanisms.</li>
+</ul>
+
+<h2>Data processed in transit</h2>
+<p>During each request, the following data is processed <strong>in memory only</strong> and discarded immediately after the response is sent:</p>
+<ul>
+  <li>Your Miro OAuth access token (to authenticate API calls to Miro)</li>
+  <li>Board data returned by the Miro API (board names, content, members, etc.)</li>
+  <li>Items you create (sticky notes, shapes) — forwarded to the Miro API</li>
+</ul>
+
+<h2>Logging</h2>
+<p>The Service runs on AWS Lambda. Operational logs (request paths, error messages) may be retained in AWS CloudWatch for debugging purposes. These logs do <strong>not</strong> contain OAuth tokens, board content, or personally identifiable information.</p>
+
+<h2>Third-party services</h2>
+<ul>
+  <li><strong>Miro API</strong> (<a href="https://miro.com/legal/privacy-policy/">Miro Privacy Policy</a>) — all board operations are performed through the Miro API under your authorization.</li>
+  <li><strong>AWS Lambda</strong> (<a href="https://aws.amazon.com/privacy/">AWS Privacy Policy</a>) — the Service is hosted on AWS infrastructure in the EU (Frankfurt) region.</li>
+</ul>
+
+<h2>Your rights</h2>
+<p>Since the Service does not store any personal data, there is nothing to access, correct, or delete. You can revoke the Service's access to your Miro account at any time by removing the app from your <a href="https://miro.com/app/settings/user-profile/apps">Miro App settings</a>.</p>
+
+<h2>Contact</h2>
+<p>For questions about this privacy policy, please open an issue on the <a href="https://github.com/my-best-code/NetzSchule-Miro-MCP">GitHub repository</a>.</p>
+
+</body>
+</html>

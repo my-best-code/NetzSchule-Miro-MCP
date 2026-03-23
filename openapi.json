@@ -3,7 +3,7 @@
   "info": {
     "title": "NetzSchule Miro MCP REST API",
     "description": "REST API for managing Miro boards — create sticky notes, shapes, manage sharing, and more. Used as a backend for ChatGPT GPT Actions.",
-    "version": "0.4.0"
+    "version": "0.9.8"
   },
   "servers": [
     {
@@ -490,8 +490,8 @@
         "type": "oauth2",
         "flows": {
           "authorizationCode": {
-            "authorizationUrl": "https://miro.com/oauth/authorize",
-            "tokenUrl": "https://api.miro.com/v1/oauth/token",
+            "authorizationUrl": "https://cb9i0uzdyi.execute-api.eu-central-1.amazonaws.com/prod/oauth/authorize",
+            "tokenUrl": "https://cb9i0uzdyi.execute-api.eu-central-1.amazonaws.com/prod/oauth/token",
             "scopes": {
               "boards:read": "Read board data",
               "boards:write": "Create and modify board items"
