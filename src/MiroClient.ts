@@ -27,9 +27,13 @@ interface MiroTokenContext {
   team: { id: string; name: string };
 }
 
+export type BoardSortOption = 'default' | 'last_modified' | 'last_opened' | 'last_created' | 'alphabetically';
+
 export interface BoardFilterParams {
   teamId?: string;
   ownerId?: string;
+  sort?: BoardSortOption;
+  query?: string;
 }
 
 export interface MiroSharingPolicy {
@@ -156,15 +160,17 @@ export class MiroClient {
     if (offset > 0) queryParts.push(`offset=${offset}`);
     if (params?.teamId) queryParts.push(`team_id=${params.teamId}`);
     if (params?.ownerId) queryParts.push(`owner=${params.ownerId}`);
-    return this.fetchApi(
-      `/boards?${queryParts.join('&')}`,
-    ) as Promise<MiroBoardsResponse>;
+    if (params?.sort) queryParts.push(`sort=${params.sort}`);
+    if (params?.query) queryParts.push(`query=${encodeURIComponent(params.query)}`);
+    return this.fetchApi(`/boards?${queryParts.join('&')}`) as Promise<MiroBoardsResponse>;
   }
 
   async getBoards(params?: BoardFilterParams): Promise<MiroBoard[]> {
     const queryParts: string[] = [`limit=${PAGE_LIMIT}`];
     if (params?.teamId) queryParts.push(`team_id=${params.teamId}`);
     if (params?.ownerId) queryParts.push(`owner=${params.ownerId}`);
+    if (params?.sort) queryParts.push(`sort=${params.sort}`);
+    if (params?.query) queryParts.push(`query=${encodeURIComponent(params.query)}`);
     const query = queryParts.length ? `?${queryParts.join('&')}` : '';
 
     const allBoards: MiroBoard[] = [];

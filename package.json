@@ -1,6 +1,6 @@
 {
   "name": "@my-best-code/netzschule-miro-mcp",
-  "version": "0.9.7",
+  "version": "0.9.8",
   "description": "A Model Context Protocol server to connect to the MIRO Whiteboard Application. Supports board filtering by owner/team.",
   "author": "Dmitri Konnov (https://github.com/DmitriKonnovNN)",
   "license": "Apache-2.0",
@@ -37,7 +37,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.27.1",
+    "@modelcontextprotocol/sdk": "1.28.0",
     "yargs": "^18.0.0",
     "zod": "^4.3.6"
   },
@@ -46,7 +46,7 @@
     "@types/node": "^25.5.0",
     "@types/yargs": "^17.0.35",
     "esbuild": "^0.27.4",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.2",
     "vitest": "^4.1.0"
   }
 }

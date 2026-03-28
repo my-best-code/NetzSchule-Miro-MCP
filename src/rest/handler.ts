@@ -1,10 +1,6 @@
-import type { BoardFilterParams, MiroClient } from '../MiroClient.js';
-import {
-  formatSharingPolicy,
-  resolveStickyNote,
-  transformBulkItems,
-} from '../transforms.js';
-import { matchRoute } from './router.js';
+import { MiroClient, type BoardFilterParams, type BoardSortOption } from "../MiroClient.js";
+import { matchRoute } from "./router.js";
+import { resolveStickyNote, transformBulkItems, formatSharingPolicy } from "../transforms.js";
 
 export interface HttpRequest {
   method: string;
@@ -46,17 +42,21 @@ export async function handleRequest(
 
     switch (handler) {
       case 'listBoards': {
-        const limit = Math.min(
-          parseInt(req.queryStringParameters?.limit || '50', 10) || 50,
-          50,
-        );
-        const offset =
-          parseInt(req.queryStringParameters?.offset || '0', 10) || 0;
-        const boards = await miroClient.getBoardsPage(
-          boardFilter,
-          limit,
-          offset,
-        );
+        const limit = Math.min(parseInt(req.queryStringParameters?.limit || '20', 10) || 20, 50);
+        const offset = parseInt(req.queryStringParameters?.offset || '0', 10) || 0;
+        const sort = (req.queryStringParameters?.sort as BoardSortOption) || 'last_modified';
+        const query = req.queryStringParameters?.query;
+        const scope = req.queryStringParameters?.scope || 'mine';
+        const mergedFilter: BoardFilterParams = { ...boardFilter, sort, ...(query && { query }) };
+        if (scope === 'mine' && !boardFilter.teamId) {
+          try {
+            const tokenContext = await miroClient.getTokenContext();
+            mergedFilter.ownerId = tokenContext.user.id;
+          } catch {
+            // Fall back to all boards
+          }
+        }
+        const boards = await miroClient.getBoardsPage(mergedFilter, limit, offset);
         return jsonResponse(200, boards);
       }
 
