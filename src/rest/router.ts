@@ -25,6 +25,7 @@ function compileRoute(method: string, path: string, handler: string): RouteDefin
 }
 
 const routes: RouteDefinition[] = [
+  compileRoute('GET', '/health', 'health'),
   compileRoute('GET', '/boards', 'listBoards'),
   compileRoute('GET', '/boards/:boardId/frames', 'getFrames'),
   compileRoute('GET', '/boards/:boardId/frames/:frameId/items', 'getItemsInFrame'),

@@ -24,3 +24,8 @@ updates:
       day: "monday"
     labels:
       - "ci"
+    groups:
+      actions-minor-patch:
+        update-types:
+          - "minor"
+          - "patch"

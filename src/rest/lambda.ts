@@ -34,7 +34,26 @@ function buildBoardFilter(): BoardFilterParams {
   return {};
 }
 
+function stripStagePrefix(event: APIGatewayProxyEventV2): string {
+  const rawPath = event.requestContext.http.path;
+  const stage = event.requestContext?.stage;
+  return stage && stage !== '$default' && rawPath.startsWith(`/${stage}`)
+    ? rawPath.slice(`/${stage}`.length) || '/'
+    : rawPath;
+}
+
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
+  const path = stripStagePrefix(event);
+
+  // Health check — no auth required
+  if (event.requestContext.http.method === 'GET' && path === '/health') {
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'ok' }),
+    };
+  }
+
   // Extract Miro OAuth token from Authorization header (provided by ChatGPT OAuth flow)
   const miroToken = extractMiroToken(event);
   if (!miroToken) {
@@ -76,13 +95,6 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       };
     }
   }
-
-  // API Gateway v2 includes the stage prefix (e.g. /prod) in the path — strip it for routing
-  const rawPath = event.requestContext.http.path;
-  const stage = event.requestContext?.stage;
-  const path = stage && stage !== '$default' && rawPath.startsWith(`/${stage}`)
-    ? rawPath.slice(`/${stage}`.length) || '/'
-    : rawPath;
 
   const req: HttpRequest = {
     method: event.requestContext.http.method,
