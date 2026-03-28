@@ -177,9 +177,6 @@ Resources:
             Path: /oauth/token
             Method: POST
 
-Conditions:
-  HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
-
   # --- CloudWatch Alarms ---
 
   AlarmSnsTopic:
@@ -279,6 +276,9 @@ Conditions:
       ComparisonOperator: GreaterThanOrEqualToThreshold
       TreatMissingData: notBreaching
       AlarmActions: !If [HasAlarmEmail, [!Ref AlarmSnsTopic], []]
+
+Conditions:
+  HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
 
 Outputs:
   ApiUrl:
