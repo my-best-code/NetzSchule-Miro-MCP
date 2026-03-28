@@ -1,11 +1,10 @@
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { MiroClient, type BoardFilterParams } from "../MiroClient.js";
-import { registerMcpTools } from "./registerTools.js";
-// @ts-ignore — esbuild bundles .md as text via --loader:.md=text
-import keyFactsContent from "../../resources/boards-key-facts.md";
-// @ts-ignore — esbuild resolves JSON imports at bundle time
-import pkg from "../../package.json";
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
+// @ts-expect-error — esbuild resolves JSON imports at bundle time
+import pkg from '../../package.json';
+import keyFactsContent from '../../resources/boards-key-facts.md';
+import { type BoardFilterParams, MiroClient } from '../MiroClient.js';
+import { registerMcpTools } from './registerTools.js';
 
 const VERSION = pkg.version;
 const TEAM_ID = process.env.MIRO_TEAM_ID;
@@ -38,12 +37,15 @@ interface APIGatewayProxyResultV2 {
 // --- Helpers ---
 
 function extractMiroToken(event: APIGatewayProxyEventV2): string | null {
-  const authHeader = event.headers['authorization'] || event.headers['Authorization'];
+  const authHeader =
+    event.headers['authorization'] || event.headers['Authorization'];
   if (!authHeader) return null;
   return authHeader.replace(/^Bearer\s+/i, '').trim() || null;
 }
 
-async function buildBoardFilter(client: MiroClient): Promise<BoardFilterParams> {
+async function buildBoardFilter(
+  client: MiroClient,
+): Promise<BoardFilterParams> {
   if (TEAM_ID) return { teamId: TEAM_ID };
   try {
     const tokenContext = await client.getTokenContext();
@@ -72,11 +74,16 @@ function apiGatewayEventToRequest(event: APIGatewayProxyEventV2): Request {
   return new Request(url, {
     method,
     headers,
-    body: method !== 'GET' && method !== 'HEAD' && method !== 'DELETE' ? body : undefined,
+    body:
+      method !== 'GET' && method !== 'HEAD' && method !== 'DELETE'
+        ? body
+        : undefined,
   });
 }
 
-async function webResponseToApiGateway(response: Response): Promise<APIGatewayProxyResultV2> {
+async function webResponseToApiGateway(
+  response: Response,
+): Promise<APIGatewayProxyResultV2> {
   const headers: Record<string, string> = {};
   response.headers.forEach((value, key) => {
     headers[key] = value;
@@ -106,10 +113,18 @@ function stripStagePrefix(event: APIGatewayProxyEventV2): string {
   return rawPath;
 }
 
-function jsonResponse(statusCode: number, body: unknown, extraHeaders?: Record<string, string>): APIGatewayProxyResultV2 {
+function jsonResponse(
+  statusCode: number,
+  body: unknown,
+  extraHeaders?: Record<string, string>,
+): APIGatewayProxyResultV2 {
   return {
     statusCode,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', ...extraHeaders },
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      ...extraHeaders,
+    },
     body: JSON.stringify(body),
   };
 }
@@ -123,7 +138,9 @@ function parseRequestBody(event: APIGatewayProxyEventV2): string {
 
 // --- Handler ---
 
-export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
+export const handler = async (
+  event: APIGatewayProxyEventV2,
+): Promise<APIGatewayProxyResultV2> => {
   const path = stripStagePrefix(event);
   const method = event.requestContext.http.method;
   const baseUrl = deriveBaseUrl(event);
@@ -140,7 +157,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       resource: `${baseUrl}/mcp`,
       authorization_servers: [baseUrl],
       scopes_supported: [],
-      resource_name: "Miro MCP Server",
+      resource_name: 'Miro MCP Server',
     };
     console.log('[mcp] resource-metadata response', JSON.stringify(body));
     return jsonResponse(200, body);
@@ -153,11 +170,14 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       authorization_endpoint: `${baseUrl}/oauth/authorize`,
       token_endpoint: `${baseUrl}/oauth/token`,
       registration_endpoint: `${baseUrl}/oauth/register`,
-      response_types_supported: ["code"],
-      grant_types_supported: ["authorization_code"],
+      response_types_supported: ['code'],
+      grant_types_supported: ['authorization_code'],
       scopes_supported: [],
-      token_endpoint_auth_methods_supported: ["client_secret_post", "client_secret_basic"],
-      code_challenge_methods_supported: ["S256"],
+      token_endpoint_auth_methods_supported: [
+        'client_secret_post',
+        'client_secret_basic',
+      ],
+      code_challenge_methods_supported: ['S256'],
     };
     console.log('[mcp] oidc-discovery response', JSON.stringify(body));
     return jsonResponse(200, body);
@@ -184,9 +204,9 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       client_id: clientId,
       client_name: (registrationRequest.client_name as string) || 'MCP Client',
       redirect_uris: registrationRequest.redirect_uris || [],
-      grant_types: ["authorization_code"],
-      response_types: ["code"],
-      token_endpoint_auth_method: "client_secret_post",
+      grant_types: ['authorization_code'],
+      response_types: ['code'],
+      token_endpoint_auth_method: 'client_secret_post',
     };
 
     console.log('[mcp] /oauth/register response:', JSON.stringify(response));
@@ -201,7 +221,9 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
   if (method === 'GET' && path === '/oauth/authorize') {
     if (!MIRO_CLIENT_ID) {
       console.error('[mcp] MIRO_CLIENT_ID not configured');
-      return jsonResponse(500, { error: 'OAuth not configured: MIRO_CLIENT_ID missing' });
+      return jsonResponse(500, {
+        error: 'OAuth not configured: MIRO_CLIENT_ID missing',
+      });
     }
 
     const qs = event.queryStringParameters || {};
@@ -224,7 +246,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     return {
       statusCode: 302,
       headers: {
-        'Location': redirectUrl,
+        Location: redirectUrl,
         'Cache-Control': 'no-store',
       },
       body: '',
@@ -238,8 +260,12 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
   // POST /oauth/token — proxy token exchange to Miro
   if (method === 'POST' && path === '/oauth/token') {
     if (!MIRO_CLIENT_ID || !MIRO_CLIENT_SECRET) {
-      console.error('[mcp] MIRO_CLIENT_ID or MIRO_CLIENT_SECRET not configured');
-      return jsonResponse(500, { error: 'OAuth not configured: missing Miro credentials' });
+      console.error(
+        '[mcp] MIRO_CLIENT_ID or MIRO_CLIENT_SECRET not configured',
+      );
+      return jsonResponse(500, {
+        error: 'OAuth not configured: missing Miro credentials',
+      });
     }
 
     const rawBody = parseRequestBody(event);
@@ -255,7 +281,10 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     const miroTokenUrl = 'https://api.miro.com/v1/oauth/token';
     const forwardBody = params.toString();
     console.log('[mcp] forwarding to Miro token endpoint:', miroTokenUrl);
-    console.log('[mcp] forward body (redacted secret):', forwardBody.replace(/client_secret=[^&]+/, 'client_secret=***'));
+    console.log(
+      '[mcp] forward body (redacted secret):',
+      forwardBody.replace(/client_secret=[^&]+/, 'client_secret=***'),
+    );
 
     try {
       const miroResponse = await fetch(miroTokenUrl, {
@@ -285,7 +314,8 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
       }
 
       const responseHeaders: Record<string, string> = {
-        'Content-Type': miroResponse.headers.get('content-type') || 'application/json',
+        'Content-Type':
+          miroResponse.headers.get('content-type') || 'application/json',
         'Access-Control-Allow-Origin': '*',
         'Cache-Control': 'no-store',
       };
@@ -334,11 +364,13 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     console.log('[mcp] board filter ready:', JSON.stringify(boardFilter));
   } catch (err: unknown) {
     console.error('[mcp] init error', err);
-    return jsonResponse(500, { error: err instanceof Error ? err.message : 'Initialization failed' });
+    return jsonResponse(500, {
+      error: err instanceof Error ? err.message : 'Initialization failed',
+    });
   }
 
   const server = new McpServer({
-    name: "mcp-miro",
+    name: 'mcp-miro',
     version: VERSION,
   });
 
@@ -359,7 +391,9 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     return await webResponseToApiGateway(response);
   } catch (err: unknown) {
     console.error('[mcp] request error', err);
-    return jsonResponse(500, { error: err instanceof Error ? err.message : 'Internal server error' });
+    return jsonResponse(500, {
+      error: err instanceof Error ? err.message : 'Internal server error',
+    });
   } finally {
     await transport.close();
     await server.close();

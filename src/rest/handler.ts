@@ -1,6 +1,10 @@
-import { MiroClient, type BoardFilterParams } from "../MiroClient.js";
-import { matchRoute } from "./router.js";
-import { resolveStickyNote, transformBulkItems, formatSharingPolicy } from "../transforms.js";
+import type { BoardFilterParams, MiroClient } from '../MiroClient.js';
+import {
+  formatSharingPolicy,
+  resolveStickyNote,
+  transformBulkItems,
+} from '../transforms.js';
+import { matchRoute } from './router.js';
 
 export interface HttpRequest {
   method: string;
@@ -42,9 +46,17 @@ export async function handleRequest(
 
     switch (handler) {
       case 'listBoards': {
-        const limit = Math.min(parseInt(req.queryStringParameters?.limit || '50', 10) || 50, 50);
-        const offset = parseInt(req.queryStringParameters?.offset || '0', 10) || 0;
-        const boards = await miroClient.getBoardsPage(boardFilter, limit, offset);
+        const limit = Math.min(
+          parseInt(req.queryStringParameters?.limit || '50', 10) || 50,
+          50,
+        );
+        const offset =
+          parseInt(req.queryStringParameters?.offset || '0', 10) || 0;
+        const boards = await miroClient.getBoardsPage(
+          boardFilter,
+          limit,
+          offset,
+        );
         return jsonResponse(200, boards);
       }
 
@@ -54,7 +66,10 @@ export async function handleRequest(
       }
 
       case 'getItemsInFrame': {
-        const items = await miroClient.getItemsInFrame(params.boardId, params.frameId);
+        const items = await miroClient.getItemsInFrame(
+          params.boardId,
+          params.frameId,
+        );
         return jsonResponse(200, { items });
       }
 
@@ -73,11 +88,15 @@ export async function handleRequest(
 
       case 'getBoardShareLink': {
         const boardDetails = await miroClient.getBoardDetails(params.boardId);
-        const link = boardDetails.viewLink || `https://miro.com/app/board/${params.boardId}/`;
+        const link =
+          boardDetails.viewLink ||
+          `https://miro.com/app/board/${params.boardId}/`;
         return jsonResponse(200, {
           board: { id: boardDetails.id, name: boardDetails.name },
           viewLink: link,
-          linkAccess: boardDetails.sharingPolicy?.inviteToAccountAndBoardLinkAccess ?? 'no_access',
+          linkAccess:
+            boardDetails.sharingPolicy?.inviteToAccountAndBoardLinkAccess ??
+            'no_access',
         });
       }
 
@@ -94,7 +113,10 @@ export async function handleRequest(
           shape: (body.shape as 'square' | 'rectangle') || 'square',
           parentId: body.parentId as string | undefined,
         });
-        const stickyNote = await miroClient.createStickyNote(params.boardId, stickyData);
+        const stickyNote = await miroClient.createStickyNote(
+          params.boardId,
+          stickyData,
+        );
         return jsonResponse(201, { id: stickyNote.id, shape: finalShape });
       }
 
@@ -102,20 +124,35 @@ export async function handleRequest(
         if (!body) return errorResponse(400, 'Request body is required');
         const items = body.items as unknown[];
         if (!Array.isArray(items) || items.length === 0) {
-          return errorResponse(400, 'items array is required and must not be empty');
+          return errorResponse(
+            400,
+            'items array is required and must not be empty',
+          );
         }
         if (items.length > 20) {
           return errorResponse(400, 'Maximum 20 items per request');
         }
         const transformedItems = transformBulkItems(items);
-        const createdItems = await miroClient.bulkCreateItems(params.boardId, transformedItems);
-        return jsonResponse(201, { created: createdItems.length, items: createdItems });
+        const createdItems = await miroClient.bulkCreateItems(
+          params.boardId,
+          transformedItems,
+        );
+        return jsonResponse(201, {
+          created: createdItems.length,
+          items: createdItems,
+        });
       }
 
       case 'createShape': {
         if (!body) return errorResponse(400, 'Request body is required');
-        const pos = (body.position as { x?: number; y?: number; origin?: string }) || {};
-        const geo = (body.geometry as { width?: number; height?: number; rotation?: number }) || {};
+        const pos =
+          (body.position as { x?: number; y?: number; origin?: string }) || {};
+        const geo =
+          (body.geometry as {
+            width?: number;
+            height?: number;
+            rotation?: number;
+          }) || {};
         const shapeItem = await miroClient.createShape(params.boardId, {
           data: {
             shape: (body.shape as string) || 'rectangle',
@@ -123,21 +160,39 @@ export async function handleRequest(
           },
           style: (body.style as Record<string, unknown>) || {},
           position: { x: pos.x ?? 0, y: pos.y ?? 0, origin: pos.origin },
-          geometry: { width: geo.width ?? 200, height: geo.height ?? 200, rotation: geo.rotation },
+          geometry: {
+            width: geo.width ?? 200,
+            height: geo.height ?? 200,
+            rotation: geo.rotation,
+          },
         });
-        return jsonResponse(201, { id: shapeItem.id, shape: body.shape || 'rectangle' });
+        return jsonResponse(201, {
+          id: shapeItem.id,
+          shape: body.shape || 'rectangle',
+        });
       }
 
       case 'updateBoardSharing': {
         if (!body) return errorResponse(400, 'Request body is required');
         const sharingPolicy: Record<string, string> = {};
-        for (const key of ['access', 'teamAccess', 'organizationAccess', 'inviteToAccountAndBoardLinkAccess']) {
+        for (const key of [
+          'access',
+          'teamAccess',
+          'organizationAccess',
+          'inviteToAccountAndBoardLinkAccess',
+        ]) {
           if (body[key]) sharingPolicy[key] = body[key] as string;
         }
         if (Object.keys(sharingPolicy).length === 0) {
-          return errorResponse(400, 'At least one sharing policy field must be provided');
+          return errorResponse(
+            400,
+            'At least one sharing policy field must be provided',
+          );
         }
-        await miroClient.updateBoardSharingPolicy(params.boardId, sharingPolicy);
+        await miroClient.updateBoardSharingPolicy(
+          params.boardId,
+          sharingPolicy,
+        );
         const verified = await miroClient.getBoardDetails(params.boardId);
         return jsonResponse(200, {
           board: { id: verified.id, name: verified.name },
@@ -149,11 +204,15 @@ export async function handleRequest(
         return errorResponse(500, `Unknown handler: ${handler}`);
     }
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Internal server error';
-    const statusCode = message.includes('Miro API error: 404') ? 404
-      : message.includes('Miro API error: 403') ? 403
-      : message.includes('Miro API error: 401') ? 401
-      : 500;
+    const message =
+      err instanceof Error ? err.message : 'Internal server error';
+    const statusCode = message.includes('Miro API error: 404')
+      ? 404
+      : message.includes('Miro API error: 403')
+        ? 403
+        : message.includes('Miro API error: 401')
+          ? 401
+          : 500;
     return errorResponse(statusCode, message);
   }
 }

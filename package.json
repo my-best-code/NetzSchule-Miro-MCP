@@ -31,6 +31,8 @@
     "build:lambda": "esbuild src/rest/lambda.ts --bundle --platform=node --target=node24 --outfile=dist/lambda.js --format=cjs",
     "build:mcp-lambda": "esbuild src/mcp/lambda.ts --bundle --platform=node --target=node24 --outfile=dist/mcp-lambda.js --format=cjs --loader:.md=text",
     "build:lambdas": "npm run build:lambda && npm run build:mcp-lambda",
+    "lint": "biome check src/",
+    "lint:fix": "biome check --write src/",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -40,6 +42,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.9",
     "@types/node": "^25.5.0",
     "@types/yargs": "^17.0.35",
     "esbuild": "^0.27.4",

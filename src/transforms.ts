@@ -1,5 +1,5 @@
-import { STICKY_SIZE_PRESETS } from "./schemas.js";
-import type { MiroSharingPolicy, StickyNoteData } from "./MiroClient.js";
+import type { MiroSharingPolicy, StickyNoteData } from './MiroClient.js';
+import { STICKY_SIZE_PRESETS } from './schemas.js';
 
 export interface StickyNoteParams {
   boardId: string;
@@ -13,7 +13,11 @@ export interface StickyNoteParams {
   parentId?: string;
 }
 
-export function resolveStickyNote(params: StickyNoteParams): { stickyData: StickyNoteData; finalWidth?: number; finalShape: string } {
+export function resolveStickyNote(params: StickyNoteParams): {
+  stickyData: StickyNoteData;
+  finalWidth?: number;
+  finalShape: string;
+} {
   let finalWidth = params.width;
   let finalShape: 'square' | 'rectangle' = params.shape;
 
@@ -55,13 +59,19 @@ export function transformBulkItems(items: any[]): any[] {
 
     // Resolve custom width
     if (transformed.width !== undefined && transformed.type === 'sticky_note') {
-      transformed.geometry = { ...transformed.geometry, width: transformed.width };
+      transformed.geometry = {
+        ...transformed.geometry,
+        width: transformed.width,
+      };
       delete transformed.width;
     }
 
     // Resolve color shorthand
     if (transformed.color) {
-      transformed.style = { ...transformed.style, fillColor: transformed.color };
+      transformed.style = {
+        ...transformed.style,
+        fillColor: transformed.color,
+      };
       delete transformed.color;
     }
 
@@ -75,12 +85,17 @@ export function transformBulkItems(items: any[]): any[] {
   });
 }
 
-export function formatSharingPolicy(sp: MiroSharingPolicy | undefined): string[] {
+export function formatSharingPolicy(
+  sp: MiroSharingPolicy | undefined,
+): string[] {
   if (!sp) return [];
   const lines: string[] = [];
   if (sp.access) lines.push(`  Access: ${sp.access}`);
   if (sp.teamAccess) lines.push(`  Team access: ${sp.teamAccess}`);
-  if (sp.organizationAccess) lines.push(`  Organization access: ${sp.organizationAccess}`);
-  lines.push(`  Link access (API-level): ${sp.inviteToAccountAndBoardLinkAccess ?? 'no_access'}`);
+  if (sp.organizationAccess)
+    lines.push(`  Organization access: ${sp.organizationAccess}`);
+  lines.push(
+    `  Link access (API-level): ${sp.inviteToAccountAndBoardLinkAccess ?? 'no_access'}`,
+  );
   return lines;
 }
