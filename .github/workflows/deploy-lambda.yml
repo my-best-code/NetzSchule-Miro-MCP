@@ -54,3 +54,17 @@ jobs:
               MiroTeamId=${{ secrets.MIRO_TEAM_ID }} \
               MiroClientId=${{ secrets.MCP_MIRO_CLIENT_ID }} \
               MiroClientSecret=${{ secrets.MCP_MIRO_CLIENT_SECRET }}
+
+      - name: Smoke test
+        run: |
+          API_URL=$(aws cloudformation describe-stacks \
+            --stack-name miro-mcp-rest-api \
+            --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
+            --output text)
+          echo "Testing $API_URL/health ..."
+          STATUS=$(curl -s -o /dev/null -w '%{http_code}' "$API_URL/health")
+          if [ "$STATUS" != "200" ]; then
+            echo "Smoke test FAILED: GET /health returned $STATUS"
+            exit 1
+          fi
+          echo "Smoke test passed (HTTP $STATUS)"

@@ -51,6 +51,12 @@ Resources:
         Variables:
           MIRO_TEAM_ID: !Ref MiroTeamId
       Events:
+        Health:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref MiroRestApi
+            Path: /health
+            Method: GET
         ListBoards:
           Type: HttpApi
           Properties:
