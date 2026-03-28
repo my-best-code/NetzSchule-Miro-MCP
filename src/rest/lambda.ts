@@ -1,5 +1,5 @@
-import { MiroClient, type BoardFilterParams } from "../MiroClient.js";
-import { handleRequest, type HttpRequest } from "./handler.js";
+import { type BoardFilterParams, MiroClient } from '../MiroClient.js';
+import { type HttpRequest, handleRequest } from './handler.js';
 
 interface APIGatewayProxyEventV2 {
   requestContext: {
@@ -24,7 +24,8 @@ interface APIGatewayProxyResultV2 {
 const TEAM_ID = process.env.MIRO_TEAM_ID;
 
 function extractMiroToken(event: APIGatewayProxyEventV2): string | null {
-  const authHeader = event.headers['authorization'] || event.headers['Authorization'];
+  const authHeader =
+    event.headers['authorization'] || event.headers['Authorization'];
   if (!authHeader) return null;
   return authHeader.replace(/^Bearer\s+/i, '').trim() || null;
 }
@@ -42,7 +43,9 @@ function stripStagePrefix(event: APIGatewayProxyEventV2): string {
     : rawPath;
 }
 
-export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
+export const handler = async (
+  event: APIGatewayProxyEventV2,
+): Promise<APIGatewayProxyResultV2> => {
   const path = stripStagePrefix(event);
 
   // Health check — no auth required
@@ -76,7 +79,9 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
     return {
       statusCode: 500,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: err instanceof Error ? err.message : 'Initialization failed' }),
+      body: JSON.stringify({
+        error: err instanceof Error ? err.message : 'Initialization failed',
+      }),
     };
   }
 

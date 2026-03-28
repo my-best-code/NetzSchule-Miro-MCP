@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MiroClient } from './MiroClient.js';
 
 const mockFetch = vi.fn();
@@ -24,20 +24,25 @@ describe('MiroClient', () => {
 
   describe('getTokenContext', () => {
     it('calls /v1/oauth-token with correct auth header', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        user: { id: 'user-1', name: 'Test User' },
-        team: { id: 'team-1', name: 'Test Team' },
-      }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          user: { id: 'user-1', name: 'Test User' },
+          team: { id: 'team-1', name: 'Test Team' },
+        }),
+      );
 
       const result = await client.getTokenContext();
 
-      expect(mockFetch).toHaveBeenCalledWith('https://api.miro.com/v1/oauth-token', {
-        method: 'GET',
-        headers: {
-          'Authorization': 'Bearer test-token',
-          'Content-Type': 'application/json',
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.miro.com/v1/oauth-token',
+        {
+          method: 'GET',
+          headers: {
+            Authorization: 'Bearer test-token',
+            'Content-Type': 'application/json',
+          },
         },
-      });
+      );
       expect(result.user.id).toBe('user-1');
       expect(result.team.id).toBe('team-1');
     });
@@ -45,16 +50,22 @@ describe('MiroClient', () => {
     it('throws on API error', async () => {
       mockFetch.mockResolvedValueOnce(jsonResponse({}, false, 401));
 
-      await expect(client.getTokenContext()).rejects.toThrow('Miro API error: 401 Error');
+      await expect(client.getTokenContext()).rejects.toThrow(
+        'Miro API error: 401 Error',
+      );
     });
   });
 
   describe('getBoards', () => {
     it('calls /boards with limit=50 by default', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        data: [{ id: 'b1', name: 'Board 1' }],
-        total: 1, size: 1, offset: 0,
-      }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: [{ id: 'b1', name: 'Board 1' }],
+          total: 1,
+          size: 1,
+          offset: 0,
+        }),
+      );
 
       const boards = await client.getBoards();
 
@@ -66,9 +77,14 @@ describe('MiroClient', () => {
     });
 
     it('adds team_id query param when teamId is provided', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        data: [], total: 0, size: 0, offset: 0,
-      }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: [],
+          total: 0,
+          size: 0,
+          offset: 0,
+        }),
+      );
 
       await client.getBoards({ teamId: 'team-123' });
 
@@ -78,9 +94,14 @@ describe('MiroClient', () => {
     });
 
     it('adds owner query param when ownerId is provided', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        data: [], total: 0, size: 0, offset: 0,
-      }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: [],
+          total: 0,
+          size: 0,
+          offset: 0,
+        }),
+      );
 
       await client.getBoards({ ownerId: 'user-456' });
 
@@ -89,9 +110,14 @@ describe('MiroClient', () => {
     });
 
     it('adds both team_id and owner when both provided', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        data: [], total: 0, size: 0, offset: 0,
-      }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: [],
+          total: 0,
+          size: 0,
+          offset: 0,
+        }),
+      );
 
       await client.getBoards({ teamId: 'team-1', ownerId: 'user-1' });
 
@@ -102,14 +128,25 @@ describe('MiroClient', () => {
 
     it('paginates when total > returned size', async () => {
       mockFetch
-        .mockResolvedValueOnce(jsonResponse({
-          data: [{ id: 'b1', name: 'Board 1' }, { id: 'b2', name: 'Board 2' }],
-          total: 3, size: 2, offset: 0,
-        }))
-        .mockResolvedValueOnce(jsonResponse({
-          data: [{ id: 'b3', name: 'Board 3' }],
-          total: 3, size: 1, offset: 2,
-        }));
+        .mockResolvedValueOnce(
+          jsonResponse({
+            data: [
+              { id: 'b1', name: 'Board 1' },
+              { id: 'b2', name: 'Board 2' },
+            ],
+            total: 3,
+            size: 2,
+            offset: 0,
+          }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({
+            data: [{ id: 'b3', name: 'Board 3' }],
+            total: 3,
+            size: 1,
+            offset: 2,
+          }),
+        );
 
       const boards = await client.getBoards();
 
@@ -121,10 +158,14 @@ describe('MiroClient', () => {
     });
 
     it('does not paginate when all boards returned in first request', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        data: [{ id: 'b1', name: 'Board 1' }],
-        total: 1, size: 1, offset: 0,
-      }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: [{ id: 'b1', name: 'Board 1' }],
+          total: 1,
+          size: 1,
+          offset: 0,
+        }),
+      );
 
       await client.getBoards();
 
@@ -134,9 +175,11 @@ describe('MiroClient', () => {
 
   describe('getBoardItems', () => {
     it('calls correct endpoint with limit=50', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        data: [{ id: 'item-1', type: 'sticky_note' }],
-      }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: [{ id: 'item-1', type: 'sticky_note' }],
+        }),
+      );
 
       const items = await client.getBoardItems('board-1');
 
@@ -148,7 +191,9 @@ describe('MiroClient', () => {
 
   describe('createStickyNote', () => {
     it('sends POST with correct data', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({ id: 'sticky-1', type: 'sticky_note' }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ id: 'sticky-1', type: 'sticky_note' }),
+      );
 
       const data = {
         data: { content: 'Hello' },
@@ -169,7 +214,9 @@ describe('MiroClient', () => {
     });
 
     it('sends geometry and shape when provided', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({ id: 'sticky-2', type: 'sticky_note' }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ id: 'sticky-2', type: 'sticky_note' }),
+      );
 
       const data = {
         data: { content: 'Sized', shape: 'rectangle' },
@@ -189,7 +236,9 @@ describe('MiroClient', () => {
 
   describe('createShape', () => {
     it('sends POST with correct data', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({ id: 'shape-1', type: 'shape' }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({ id: 'shape-1', type: 'shape' }),
+      );
 
       const data = {
         data: { shape: 'rectangle', content: 'Box' },
@@ -213,9 +262,11 @@ describe('MiroClient', () => {
 
   describe('getFrames', () => {
     it('calls correct endpoint with type=frame', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        data: [{ id: 'frame-1', type: 'frame' }],
-      }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: [{ id: 'frame-1', type: 'frame' }],
+        }),
+      );
 
       const frames = await client.getFrames('board-1');
 
@@ -227,9 +278,11 @@ describe('MiroClient', () => {
 
   describe('getItemsInFrame', () => {
     it('calls correct endpoint with parent_item_id', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        data: [{ id: 'item-1', type: 'sticky_note' }],
-      }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: [{ id: 'item-1', type: 'sticky_note' }],
+        }),
+      );
 
       const items = await client.getItemsInFrame('board-1', 'frame-1');
 
@@ -241,12 +294,14 @@ describe('MiroClient', () => {
 
   describe('bulkCreateItems', () => {
     it('sends POST to bulk endpoint', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        data: [
-          { id: 'item-1', type: 'sticky_note' },
-          { id: 'item-2', type: 'shape' },
-        ],
-      }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: [
+            { id: 'item-1', type: 'sticky_note' },
+            { id: 'item-2', type: 'shape' },
+          ],
+        }),
+      );
 
       const items = [
         { type: 'sticky_note', data: { content: 'Note 1' } },
@@ -267,31 +322,37 @@ describe('MiroClient', () => {
         ok: false,
         status: 400,
         statusText: 'Bad Request',
-        text: () => Promise.resolve('{"message":"Invalid item type","details":"missing required field"}'),
+        text: () =>
+          Promise.resolve(
+            '{"message":"Invalid item type","details":"missing required field"}',
+          ),
       });
 
-      await expect(client.bulkCreateItems('board-1', []))
-        .rejects.toThrow('Miro API error: 400 Bad Request');
+      await expect(client.bulkCreateItems('board-1', [])).rejects.toThrow(
+        'Miro API error: 400 Bad Request',
+      );
     });
   });
 
   describe('getBoardDetails', () => {
     it('calls correct endpoint and returns board with policies', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        id: 'board-1',
-        name: 'Test Board',
-        sharingPolicy: {
-          access: 'private',
-          teamAccess: 'edit',
-          organizationAccess: 'view',
-          inviteToAccountAndBoardLinkAccess: 'viewer',
-        },
-        permissionsPolicy: {
-          copyAccess: 'team_editors',
-          sharingAccess: 'team_members_with_editing_rights',
-        },
-        viewLink: 'https://miro.com/app/board/board-1/',
-      }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          id: 'board-1',
+          name: 'Test Board',
+          sharingPolicy: {
+            access: 'private',
+            teamAccess: 'edit',
+            organizationAccess: 'view',
+            inviteToAccountAndBoardLinkAccess: 'viewer',
+          },
+          permissionsPolicy: {
+            copyAccess: 'team_editors',
+            sharingAccess: 'team_members_with_editing_rights',
+          },
+          viewLink: 'https://miro.com/app/board/board-1/',
+        }),
+      );
 
       const result = await client.getBoardDetails('board-1');
 
@@ -305,42 +366,52 @@ describe('MiroClient', () => {
     });
 
     it('normalizes policy wrapper from API response', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        id: 'board-2',
-        name: 'Wrapped Board',
-        policy: {
-          sharingPolicy: {
-            access: 'edit',
-            inviteToAccountAndBoardLinkAccess: 'editor',
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          id: 'board-2',
+          name: 'Wrapped Board',
+          policy: {
+            sharingPolicy: {
+              access: 'edit',
+              inviteToAccountAndBoardLinkAccess: 'editor',
+            },
+            permissionsPolicy: {
+              copyAccess: 'anyone',
+            },
           },
-          permissionsPolicy: {
-            copyAccess: 'anyone',
-          },
-        },
-      }));
+        }),
+      );
 
       const result = await client.getBoardDetails('board-2');
 
       expect(result.sharingPolicy?.access).toBe('edit');
-      expect(result.sharingPolicy?.inviteToAccountAndBoardLinkAccess).toBe('editor');
+      expect(result.sharingPolicy?.inviteToAccountAndBoardLinkAccess).toBe(
+        'editor',
+      );
       expect(result.permissionsPolicy?.copyAccess).toBe('anyone');
     });
   });
 
   describe('getBoardMembers', () => {
     it('returns all members in single page', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        data: [
-          { id: 'u1', name: 'Alice', role: 'owner', type: 'board_member' },
-          { id: 'u2', name: 'Bob', role: 'editor', type: 'board_member' },
-        ],
-        total: 2, size: 2, offset: 0,
-      }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: [
+            { id: 'u1', name: 'Alice', role: 'owner', type: 'board_member' },
+            { id: 'u2', name: 'Bob', role: 'editor', type: 'board_member' },
+          ],
+          total: 2,
+          size: 2,
+          offset: 0,
+        }),
+      );
 
       const members = await client.getBoardMembers('board-1');
 
       const url = mockFetch.mock.calls[0][0] as string;
-      expect(url).toBe('https://api.miro.com/v2/boards/board-1/members?limit=50');
+      expect(url).toBe(
+        'https://api.miro.com/v2/boards/board-1/members?limit=50',
+      );
       expect(members).toHaveLength(2);
       expect(members[0].name).toBe('Alice');
       expect(members[0].role).toBe('owner');
@@ -348,19 +419,32 @@ describe('MiroClient', () => {
 
     it('paginates when total > returned size', async () => {
       mockFetch
-        .mockResolvedValueOnce(jsonResponse({
-          data: [
-            { id: 'u1', name: 'Alice', role: 'owner', type: 'board_member' },
-            { id: 'u2', name: 'Bob', role: 'editor', type: 'board_member' },
-          ],
-          total: 3, size: 2, offset: 0,
-        }))
-        .mockResolvedValueOnce(jsonResponse({
-          data: [
-            { id: 'u3', name: 'Charlie', role: 'viewer', type: 'board_member' },
-          ],
-          total: 3, size: 1, offset: 2,
-        }));
+        .mockResolvedValueOnce(
+          jsonResponse({
+            data: [
+              { id: 'u1', name: 'Alice', role: 'owner', type: 'board_member' },
+              { id: 'u2', name: 'Bob', role: 'editor', type: 'board_member' },
+            ],
+            total: 3,
+            size: 2,
+            offset: 0,
+          }),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse({
+            data: [
+              {
+                id: 'u3',
+                name: 'Charlie',
+                role: 'viewer',
+                type: 'board_member',
+              },
+            ],
+            total: 3,
+            size: 1,
+            offset: 2,
+          }),
+        );
 
       const members = await client.getBoardMembers('board-1');
 
@@ -373,14 +457,16 @@ describe('MiroClient', () => {
 
   describe('updateBoardSharingPolicy', () => {
     it('sends PATCH with sharing policy', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        id: 'board-1',
-        name: 'Test Board',
-        sharingPolicy: {
-          access: 'private',
-          teamAccess: 'edit',
-        },
-      }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          id: 'board-1',
+          name: 'Test Board',
+          sharingPolicy: {
+            access: 'private',
+            teamAccess: 'edit',
+          },
+        }),
+      );
 
       const result = await client.updateBoardSharingPolicy('board-1', {
         teamAccess: 'edit',
@@ -396,26 +482,30 @@ describe('MiroClient', () => {
     });
 
     it('normalizes policy wrapper from PATCH response', async () => {
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        id: 'board-2',
-        name: 'Wrapped Board',
-        policy: {
-          sharingPolicy: {
-            access: 'edit',
-            inviteToAccountAndBoardLinkAccess: 'editor',
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          id: 'board-2',
+          name: 'Wrapped Board',
+          policy: {
+            sharingPolicy: {
+              access: 'edit',
+              inviteToAccountAndBoardLinkAccess: 'editor',
+            },
+            permissionsPolicy: {
+              copyAccess: 'anyone',
+            },
           },
-          permissionsPolicy: {
-            copyAccess: 'anyone',
-          },
-        },
-      }));
+        }),
+      );
 
       const result = await client.updateBoardSharingPolicy('board-2', {
         inviteToAccountAndBoardLinkAccess: 'editor',
       });
 
       expect(result.sharingPolicy?.access).toBe('edit');
-      expect(result.sharingPolicy?.inviteToAccountAndBoardLinkAccess).toBe('editor');
+      expect(result.sharingPolicy?.inviteToAccountAndBoardLinkAccess).toBe(
+        'editor',
+      );
       expect(result.permissionsPolicy?.copyAccess).toBe('anyone');
     });
   });
@@ -424,9 +514,14 @@ describe('MiroClient', () => {
     it('uses Bearer token in all requests', async () => {
       const customClient = new MiroClient('my-secret-token');
 
-      mockFetch.mockResolvedValueOnce(jsonResponse({
-        data: [], total: 0, size: 0, offset: 0,
-      }));
+      mockFetch.mockResolvedValueOnce(
+        jsonResponse({
+          data: [],
+          total: 0,
+          size: 0,
+          offset: 0,
+        }),
+      );
 
       await customClient.getBoards();
 

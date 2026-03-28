@@ -10,7 +10,11 @@ interface RouteDefinition {
   handler: string;
 }
 
-function compileRoute(method: string, path: string, handler: string): RouteDefinition {
+function compileRoute(
+  method: string,
+  path: string,
+  handler: string,
+): RouteDefinition {
   const paramNames: string[] = [];
   const pattern = path.replace(/:(\w+)/g, (_, name) => {
     paramNames.push(name);
@@ -28,7 +32,11 @@ const routes: RouteDefinition[] = [
   compileRoute('GET', '/health', 'health'),
   compileRoute('GET', '/boards', 'listBoards'),
   compileRoute('GET', '/boards/:boardId/frames', 'getFrames'),
-  compileRoute('GET', '/boards/:boardId/frames/:frameId/items', 'getItemsInFrame'),
+  compileRoute(
+    'GET',
+    '/boards/:boardId/frames/:frameId/items',
+    'getItemsInFrame',
+  ),
   compileRoute('GET', '/boards/:boardId/access', 'getBoardAccess'),
   compileRoute('GET', '/boards/:boardId/share-link', 'getBoardShareLink'),
   compileRoute('POST', '/boards/:boardId/sticky-notes', 'createStickyNote'),

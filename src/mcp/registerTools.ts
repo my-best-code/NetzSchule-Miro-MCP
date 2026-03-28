@@ -1,12 +1,24 @@
-import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { MiroClient, type BoardFilterParams } from "../MiroClient.js";
-import { z } from "zod";
 import {
-  createStickyNoteSchema, bulkCreateItemsSchema, getFramesSchema,
-  getItemsInFrameSchema, createShapeSchema, getBoardAccessSchema,
-  updateBoardSharingSchema, getBoardShareLinkSchema,
-} from "../schemas.js";
-import { resolveStickyNote, transformBulkItems, formatSharingPolicy } from "../transforms.js";
+  type McpServer,
+  ResourceTemplate,
+} from '@modelcontextprotocol/sdk/server/mcp.js';
+import { z } from 'zod';
+import type { BoardFilterParams, MiroClient } from '../MiroClient.js';
+import {
+  bulkCreateItemsSchema,
+  createShapeSchema,
+  createStickyNoteSchema,
+  getBoardAccessSchema,
+  getBoardShareLinkSchema,
+  getFramesSchema,
+  getItemsInFrameSchema,
+  updateBoardSharingSchema,
+} from '../schemas.js';
+import {
+  formatSharingPolicy,
+  resolveStickyNote,
+  transformBulkItems,
+} from '../transforms.js';
 
 export function registerMcpTools(
   server: McpServer,
@@ -17,39 +29,39 @@ export function registerMcpTools(
   // --- Resources ---
 
   server.registerResource(
-    "board",
-    new ResourceTemplate("miro://board/{boardId}", {
+    'board',
+    new ResourceTemplate('miro://board/{boardId}', {
       list: async () => {
         const boards = await miroClient.getBoards(boardFilter);
         return {
           resources: boards.map((board) => ({
             uri: `miro://board/${board.id}`,
-            mimeType: "application/json",
+            mimeType: 'application/json',
             name: board.name,
             description: board.description || `Miro board: ${board.name}`,
           })),
         };
       },
     }),
-    { description: "Miro board contents" },
+    { description: 'Miro board contents' },
     async (uri, { boardId }) => {
       const items = await miroClient.getBoardItems(boardId as string);
       return {
         contents: [
           {
             uri: uri.href,
-            mimeType: "application/json",
+            mimeType: 'application/json',
             text: JSON.stringify(items, null, 2),
           },
         ],
       };
-    }
+    },
   );
 
   // --- Tools ---
 
   server.registerTool(
-    "list_boards",
+    'list_boards',
     {
       description:
         "List available Miro boards (paginated). By default returns 20 most recently modified boards owned by the current user. " +
@@ -88,69 +100,83 @@ export function registerMcpTools(
       return {
         content: [
           {
-            type: "text",
+            type: 'text',
             text: paginationInfo,
           },
           ...response.data.map((b) => ({
-            type: "text" as const,
+            type: 'text' as const,
             text: `Board ID: ${b.id}, Name: ${b.name}${b.owner ? `, Owner: ${b.owner.name}` : ''}${b.team ? `, Team: ${b.team.name}` : ''}`,
           })),
         ],
       };
-    }
+    },
   );
 
   server.registerTool(
-    "create_sticky_note",
+    'create_sticky_note',
     {
       description:
-        "Create a sticky note on a Miro board. Available colors: gray, light_yellow, yellow, orange, light_green, green, dark_green, cyan, light_pink, pink, violet, red, light_blue, blue, dark_blue, black. " +
-        "Size presets (rectangular, each ~2x the previous): klitzeklein (325), klein (650), medium (1300), mittelgroß (2600), groß (5600), riesengroß (11200). " +
+        'Create a sticky note on a Miro board. Available colors: gray, light_yellow, yellow, orange, light_green, green, dark_green, cyan, light_pink, pink, violet, red, light_blue, blue, dark_blue, black. ' +
+        'Size presets (rectangular, each ~2x the previous): klitzeklein (325), klein (650), medium (1300), mittelgroß (2600), groß (5600), riesengroß (11200). ' +
         "Use 'size' for presets or 'width' for custom size. Shape can be 'square' (default) or 'rectangle'.",
       inputSchema: createStickyNoteSchema,
     },
     async ({ boardId, content, color, x, y, size, width, shape, parentId }) => {
-      const { stickyData, finalWidth, finalShape } = resolveStickyNote({ boardId, content, color, x, y, size, width, shape, parentId });
+      const { stickyData, finalWidth, finalShape } = resolveStickyNote({
+        boardId,
+        content,
+        color,
+        x,
+        y,
+        size,
+        width,
+        shape,
+        parentId,
+      });
       const stickyNote = await miroClient.createStickyNote(boardId, stickyData);
       return {
         content: [
           {
-            type: "text",
-            text: `Created ${finalShape} sticky note ${stickyNote.id} on board ${boardId}` +
+            type: 'text',
+            text:
+              `Created ${finalShape} sticky note ${stickyNote.id} on board ${boardId}` +
               (size ? ` (size: ${size}, width: ${finalWidth})` : ''),
           },
         ],
       };
-    }
+    },
   );
 
   server.registerTool(
-    "bulk_create_items",
+    'bulk_create_items',
     {
       description:
-        "Create multiple items on a Miro board in a single transaction (max 20 items). " +
-        "Supports same size presets as create_sticky_note: klitzeklein, klein, medium, mittelgroß, groß, riesengroß. " +
-        "Use parent.id to place items inside a frame. For sticky notes: use fillColor in style, data.shape for rectangle.",
+        'Create multiple items on a Miro board in a single transaction (max 20 items). ' +
+        'Supports same size presets as create_sticky_note: klitzeklein, klein, medium, mittelgroß, groß, riesengroß. ' +
+        'Use parent.id to place items inside a frame. For sticky notes: use fillColor in style, data.shape for rectangle.',
       inputSchema: bulkCreateItemsSchema,
     },
     async ({ boardId, items }) => {
       const transformedItems = transformBulkItems(items);
-      const createdItems = await miroClient.bulkCreateItems(boardId, transformedItems);
+      const createdItems = await miroClient.bulkCreateItems(
+        boardId,
+        transformedItems,
+      );
       return {
         content: [
           {
-            type: "text",
+            type: 'text',
             text: `Created ${createdItems.length} items on board ${boardId}`,
           },
         ],
       };
-    }
+    },
   );
 
   server.registerTool(
-    "get_frames",
+    'get_frames',
     {
-      description: "Get all frames from a Miro board",
+      description: 'Get all frames from a Miro board',
       inputSchema: getFramesSchema,
     },
     async ({ boardId }) => {
@@ -158,18 +184,19 @@ export function registerMcpTools(
       return {
         content: [
           {
-            type: "text",
+            type: 'text',
             text: JSON.stringify(frames, null, 2),
           },
         ],
       };
-    }
+    },
   );
 
   server.registerTool(
-    "get_items_in_frame",
+    'get_items_in_frame',
     {
-      description: "Get all items contained within a specific frame on a Miro board",
+      description:
+        'Get all items contained within a specific frame on a Miro board',
       inputSchema: getItemsInFrameSchema,
     },
     async ({ boardId, frameId }) => {
@@ -177,19 +204,19 @@ export function registerMcpTools(
       return {
         content: [
           {
-            type: "text",
+            type: 'text',
             text: JSON.stringify(items, null, 2),
           },
         ],
       };
-    }
+    },
   );
 
   server.registerTool(
-    "create_shape",
+    'create_shape',
     {
       description:
-        "Create a shape on a Miro board. Available shapes include basic shapes (rectangle, circle, etc.) and flowchart shapes (process, decision, etc.). Standard geometry specs: width and height in pixels (default 200x200)",
+        'Create a shape on a Miro board. Available shapes include basic shapes (rectangle, circle, etc.) and flowchart shapes (process, decision, etc.). Standard geometry specs: width and height in pixels (default 200x200)',
       inputSchema: createShapeSchema,
     },
     async ({ boardId, shape, content, style, position, geometry }) => {
@@ -202,18 +229,19 @@ export function registerMcpTools(
       return {
         content: [
           {
-            type: "text",
+            type: 'text',
             text: `Created ${shape} shape with ID ${shapeItem.id} on board ${boardId}`,
           },
         ],
       };
-    }
+    },
   );
 
   server.registerTool(
-    "get_board_access",
+    'get_board_access',
     {
-      description: "Get board access information: sharing policy (API-level settings), permissions policy, and list of members with their roles. Note: the 'inviteToAccountAndBoardLinkAccess' field reflects the API-level link access setting, which may differ from the share link configured in Miro UI (share links with share_link_id are a UI-only feature not exposed by the Miro API).",
+      description:
+        "Get board access information: sharing policy (API-level settings), permissions policy, and list of members with their roles. Note: the 'inviteToAccountAndBoardLinkAccess' field reflects the API-level link access setting, which may differ from the share link configured in Miro UI (share links with share_link_id are a UI-only feature not exposed by the Miro API).",
       inputSchema: getBoardAccessSchema,
     },
     async ({ boardId }) => {
@@ -222,13 +250,22 @@ export function registerMcpTools(
         miroClient.getBoardMembers(boardId),
       ]);
 
-      const lines: string[] = [`Board: ${boardDetails.name} (${boardDetails.id})`];
+      const lines: string[] = [
+        `Board: ${boardDetails.name} (${boardDetails.id})`,
+      ];
 
       if (boardDetails.sharingPolicy) {
-        lines.push('', 'Sharing Policy:', ...formatSharingPolicy(boardDetails.sharingPolicy));
-        const linkAccess = boardDetails.sharingPolicy.inviteToAccountAndBoardLinkAccess;
+        lines.push(
+          '',
+          'Sharing Policy:',
+          ...formatSharingPolicy(boardDetails.sharingPolicy),
+        );
+        const linkAccess =
+          boardDetails.sharingPolicy.inviteToAccountAndBoardLinkAccess;
         if (linkAccess === 'no_access' || !linkAccess) {
-          lines.push('    Note: This reflects the API-level setting. The board may still have a UI-generated share link (with share_link_id) that grants access independently. Miro API does not expose UI share links.');
+          lines.push(
+            '    Note: This reflects the API-level setting. The board may still have a UI-generated share link (with share_link_id) that grants access independently. Miro API does not expose UI share links.',
+          );
         }
       }
 
@@ -236,38 +273,56 @@ export function registerMcpTools(
         const pp = boardDetails.permissionsPolicy;
         lines.push('', 'Permissions Policy:');
         if (pp.copyAccess) lines.push(`  Copy access: ${pp.copyAccess}`);
-        if (pp.sharingAccess) lines.push(`  Sharing access: ${pp.sharingAccess}`);
+        if (pp.sharingAccess)
+          lines.push(`  Sharing access: ${pp.sharingAccess}`);
       }
 
       lines.push('', `Members (${members.length}):`);
       const roleOrder = ['owner', 'coowner', 'editor', 'commenter', 'viewer'];
-      const sorted = [...members].sort((a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role));
+      const sorted = [...members].sort(
+        (a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role),
+      );
       for (const m of sorted) {
         lines.push(`  ${m.role}: ${m.name} (id: ${m.id})`);
       }
 
       return {
-        content: [{ type: "text", text: lines.join('\n') }],
+        content: [{ type: 'text', text: lines.join('\n') }],
       };
-    }
+    },
   );
 
   server.registerTool(
-    "update_board_sharing",
+    'update_board_sharing',
     {
-      description: "Update board sharing policy via Miro API: configure access, team access, and organization access levels. Note: inviteToAccountAndBoardLinkAccess may be restricted by organization settings. UI-generated share links (with share_link_id) cannot be created or modified via the API.",
+      description:
+        'Update board sharing policy via Miro API: configure access, team access, and organization access levels. Note: inviteToAccountAndBoardLinkAccess may be restricted by organization settings. UI-generated share links (with share_link_id) cannot be created or modified via the API.',
       inputSchema: updateBoardSharingSchema,
     },
-    async ({ boardId, access, teamAccess, organizationAccess, inviteToAccountAndBoardLinkAccess }) => {
+    async ({
+      boardId,
+      access,
+      teamAccess,
+      organizationAccess,
+      inviteToAccountAndBoardLinkAccess,
+    }) => {
       const sharingPolicy: Record<string, string> = {};
       if (access) sharingPolicy.access = access;
       if (teamAccess) sharingPolicy.teamAccess = teamAccess;
-      if (organizationAccess) sharingPolicy.organizationAccess = organizationAccess;
-      if (inviteToAccountAndBoardLinkAccess) sharingPolicy.inviteToAccountAndBoardLinkAccess = inviteToAccountAndBoardLinkAccess;
+      if (organizationAccess)
+        sharingPolicy.organizationAccess = organizationAccess;
+      if (inviteToAccountAndBoardLinkAccess)
+        sharingPolicy.inviteToAccountAndBoardLinkAccess =
+          inviteToAccountAndBoardLinkAccess;
 
       if (Object.keys(sharingPolicy).length === 0) {
         return {
-          content: [{ type: "text", text: "Error: At least one sharing policy field must be provided" }],
+          content: [
+            {
+              type: 'text',
+              text: 'Error: At least one sharing policy field must be provided',
+            },
+          ],
         };
       }
 
@@ -275,70 +330,90 @@ export function registerMcpTools(
       const verified = await miroClient.getBoardDetails(boardId);
       const sp = verified.sharingPolicy;
 
-      const lines = [`Updated sharing policy for board: ${verified.name} (${verified.id})`];
-      lines.push('', 'Current Sharing Policy (verified):', ...formatSharingPolicy(sp));
+      const lines = [
+        `Updated sharing policy for board: ${verified.name} (${verified.id})`,
+      ];
+      lines.push(
+        '',
+        'Current Sharing Policy (verified):',
+        ...formatSharingPolicy(sp),
+      );
 
-      if (inviteToAccountAndBoardLinkAccess &&
-          sp?.inviteToAccountAndBoardLinkAccess !== inviteToAccountAndBoardLinkAccess) {
-        lines.push('', `Warning: inviteToAccountAndBoardLinkAccess was requested as "${inviteToAccountAndBoardLinkAccess}" but is still "${sp?.inviteToAccountAndBoardLinkAccess ?? 'no_access'}".`);
+      if (
+        inviteToAccountAndBoardLinkAccess &&
+        sp?.inviteToAccountAndBoardLinkAccess !==
+          inviteToAccountAndBoardLinkAccess
+      ) {
+        lines.push(
+          '',
+          `Warning: inviteToAccountAndBoardLinkAccess was requested as "${inviteToAccountAndBoardLinkAccess}" but is still "${sp?.inviteToAccountAndBoardLinkAccess ?? 'no_access'}".`,
+        );
         lines.push('This is likely restricted by your organization settings.');
-        lines.push('Note: UI-generated share links (with share_link_id) are a separate mechanism not accessible via the Miro API.');
-        lines.push('To manage share links, use the Miro UI: Share > "Anyone with the link".');
+        lines.push(
+          'Note: UI-generated share links (with share_link_id) are a separate mechanism not accessible via the Miro API.',
+        );
+        lines.push(
+          'To manage share links, use the Miro UI: Share > "Anyone with the link".',
+        );
       }
 
       return {
-        content: [{ type: "text", text: lines.join('\n') }],
+        content: [{ type: 'text', text: lines.join('\n') }],
       };
-    }
+    },
   );
 
   server.registerTool(
-    "get_board_share_link",
+    'get_board_share_link',
     {
-      description: "Get the board view link (direct URL). Note: this returns the board's viewLink from the API, NOT the UI-generated share link with share_link_id. Miro API does not support creating or retrieving UI share links. To get a share link with specific permissions, use the Miro UI: Share > Copy board link.",
+      description:
+        "Get the board view link (direct URL). Note: this returns the board's viewLink from the API, NOT the UI-generated share link with share_link_id. Miro API does not support creating or retrieving UI share links. To get a share link with specific permissions, use the Miro UI: Share > Copy board link.",
       inputSchema: getBoardShareLinkSchema,
     },
     async ({ boardId }) => {
       const boardDetails = await miroClient.getBoardDetails(boardId);
-      const link = boardDetails.viewLink || `https://miro.com/app/board/${boardId}/`;
-      const linkAccess = boardDetails.sharingPolicy?.inviteToAccountAndBoardLinkAccess ?? 'no_access';
+      const link =
+        boardDetails.viewLink || `https://miro.com/app/board/${boardId}/`;
+      const linkAccess =
+        boardDetails.sharingPolicy?.inviteToAccountAndBoardLinkAccess ??
+        'no_access';
 
       const lines = [
         `Board view link for "${boardDetails.name}": ${link}`,
         '',
         `API-level link access: ${linkAccess}`,
         '',
-        'Note: This is the board\'s direct URL (viewLink), not a UI-generated share link.',
+        "Note: This is the board's direct URL (viewLink), not a UI-generated share link.",
         'Miro UI share links (with ?share_link_id=...) grant access independently and',
         'cannot be created or retrieved via the Miro API.',
         'To generate a share link with specific permissions, use Miro UI: Share > Copy board link.',
       ];
 
       return {
-        content: [{ type: "text", text: lines.join('\n') }],
+        content: [{ type: 'text', text: lines.join('\n') }],
       };
-    }
+    },
   );
 
   // --- Prompts ---
 
   server.registerPrompt(
-    "Working with MIRO",
+    'Working with MIRO',
     {
-      description: "Basic prompt for working with MIRO boards",
+      description: 'Basic prompt for working with MIRO boards',
     },
     async () => {
       return {
         messages: [
           {
-            role: "user",
+            role: 'user',
             content: {
-              type: "text",
+              type: 'text',
               text: keyFactsContent,
             },
           },
         ],
       };
-    }
+    },
   );
 }

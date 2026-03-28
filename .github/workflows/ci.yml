@@ -17,9 +17,10 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '22'
+          node-version: '24'
 
       - run: npm ci
+      - run: npm run lint
       - run: npx tsc --noEmit
       - run: npm test
       - run: npm run build:lambdas
