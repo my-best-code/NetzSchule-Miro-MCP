@@ -10,6 +10,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
 
@@ -30,17 +31,26 @@ jobs:
 
       - run: sam build --no-use-container
 
-      - name: Clean up failed stack if in ROLLBACK_COMPLETE
+      - name: Clean up failed stack state
         run: |
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name miro-mcp-rest-api \
             --query "Stacks[0].StackStatus" \
             --output text 2>/dev/null || echo "NOT_FOUND")
+          echo "Current stack status: $STATUS"
           if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
             echo "Stack is in ROLLBACK_COMPLETE — deleting before redeploy..."
             aws cloudformation delete-stack --stack-name miro-mcp-rest-api
             aws cloudformation wait stack-delete-complete --stack-name miro-mcp-rest-api
             echo "Stack deleted."
+          elif [ "$STATUS" = "UPDATE_ROLLBACK_FAILED" ]; then
+            echo "Stack is in UPDATE_ROLLBACK_FAILED — continuing rollback..."
+            aws cloudformation continue-update-rollback \
+              --stack-name miro-mcp-rest-api \
+              --resources-to-skip RestFunction5xxAlarm McpFunction5xxAlarm \
+                RestFunctionThrottlesAlarm RestFunctionLatencyAlarm ApiGateway5xxAlarm
+            aws cloudformation wait stack-rollback-complete --stack-name miro-mcp-rest-api
+            echo "Rollback completed."
           fi
 
       - run: |

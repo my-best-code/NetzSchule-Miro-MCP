@@ -154,6 +154,12 @@ resource "aws_iam_policy" "sam_deploy" {
         Effect = "Allow"
         Action = ["logs:CreateLogGroup", "logs:DeleteLogGroup", "logs:DescribeLogGroups", "logs:PutRetentionPolicy"]
         Resource = "arn:aws:logs:${var.aws_region}:${var.aws_account_id}:log-group:/aws/lambda/miro-mcp-*"
+      },
+      {
+        Sid    = "CloudWatchAlarms"
+        Effect = "Allow"
+        Action = ["cloudwatch:PutMetricAlarm", "cloudwatch:DeleteAlarms", "cloudwatch:DescribeAlarms"]
+        Resource = "arn:aws:cloudwatch:${var.aws_region}:${var.aws_account_id}:alarm:miro-mcp-*"
       }
     ]
   })
