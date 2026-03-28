@@ -27,6 +27,11 @@ Parameters:
     NoEcho: true
     Description: Miro OAuth App Client Secret (for MCP OAuth proxy)
 
+Conditions:
+  HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
+
+  # --- CloudWatch Alarms ---
+
 Resources:
   MiroRestApi:
     Type: AWS::Serverless::HttpApi
@@ -177,10 +182,6 @@ Resources:
             Path: /oauth/token
             Method: POST
 
-Conditions:
-  HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
-
-  # --- CloudWatch Alarms ---
 
   AlarmSnsTopic:
     Type: AWS::SNS::Topic
