@@ -58,9 +58,23 @@ Using a size preset automatically sets the shape to `rectangle`. Height is auto-
 ### Prompts
 - **Working with MIRO** — board coordinate system and best practices
 
-## Board Filtering
+## Board Listing
 
-By default, the server automatically detects the current user via the Miro API and only returns boards owned by that user. This behavior can be configured:
+By default, `list_boards` returns **20 most recently modified boards owned by the current user**, sorted by `last_modified`. Set `scope` to `all` to see all accessible boards (including other team members' boards). This applies to all interfaces (MCP, REST API).
+
+### Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `limit` | 20 | Number of boards to return (1-50) |
+| `offset` | 0 | Pagination offset |
+| `sort` | `last_modified` | Sort order: `last_modified`, `last_opened`, `last_created`, `alphabetically`, `default` |
+| `query` | — | Search boards by name (max 500 chars) |
+| `scope` | `mine` | `mine` = only my boards, `all` = all accessible boards |
+
+### Board Filtering (local MCP only)
+
+The local MCP server (stdio) supports additional filtering via CLI flags:
 
 | Option | Environment Variable | Description |
 |--------|---------------------|-------------|
@@ -68,7 +82,9 @@ By default, the server automatically detects the current user via the Miro API a
 | `--team-id <id>` | `MIRO_TEAM_ID` | Filter boards by team ID |
 | `--no-filter` | `MIRO_NO_FILTER=true` | Disable filtering, show all accessible boards |
 
-**Examples:**
+The remote MCP server and REST API show all boards accessible to the authenticated user by default (no owner/team filter). If `MIRO_TEAM_ID` is set as an environment variable on the Lambda, boards are filtered by that team.
+
+**Examples (local):**
 
 ```bash
 # Only my boards (default, no extra flags needed)

@@ -43,14 +43,9 @@ function extractMiroToken(event: APIGatewayProxyEventV2): string | null {
   return authHeader.replace(/^Bearer\s+/i, '').trim() || null;
 }
 
-async function buildBoardFilter(client: MiroClient): Promise<BoardFilterParams> {
+function buildBoardFilter(): BoardFilterParams {
   if (TEAM_ID) return { teamId: TEAM_ID };
-  try {
-    const tokenContext = await client.getTokenContext();
-    return { ownerId: tokenContext.user.id };
-  } catch {
-    return {};
-  }
+  return {};
 }
 
 function apiGatewayEventToRequest(event: APIGatewayProxyEventV2): Request {
@@ -329,9 +324,8 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
   let boardFilter: BoardFilterParams;
   try {
     miroClient = new MiroClient(miroToken);
-    console.log('[mcp] MiroClient created, building board filter...');
-    boardFilter = await buildBoardFilter(miroClient);
-    console.log('[mcp] board filter ready:', JSON.stringify(boardFilter));
+    boardFilter = buildBoardFilter();
+    console.log('[mcp] board filter:', JSON.stringify(boardFilter));
   } catch (err: unknown) {
     console.error('[mcp] init error', err);
     return jsonResponse(500, { error: err instanceof Error ? err.message : 'Initialization failed' });

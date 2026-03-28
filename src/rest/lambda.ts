@@ -29,14 +29,9 @@ function extractMiroToken(event: APIGatewayProxyEventV2): string | null {
   return authHeader.replace(/^Bearer\s+/i, '').trim() || null;
 }
 
-async function buildBoardFilter(client: MiroClient): Promise<BoardFilterParams> {
+function buildBoardFilter(): BoardFilterParams {
   if (TEAM_ID) return { teamId: TEAM_ID };
-  try {
-    const tokenContext = await client.getTokenContext();
-    return { ownerId: tokenContext.user.id };
-  } catch {
-    return {};
-  }
+  return {};
 }
 
 export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGatewayProxyResultV2> => {
@@ -55,7 +50,7 @@ export const handler = async (event: APIGatewayProxyEventV2): Promise<APIGateway
   try {
     console.log('[lambda] init start');
     miroClient = new MiroClient(miroToken);
-    boardFilter = await buildBoardFilter(miroClient);
+    boardFilter = buildBoardFilter();
     console.log('[lambda] init done');
   } catch (err: unknown) {
     console.error('[lambda] init error', err);

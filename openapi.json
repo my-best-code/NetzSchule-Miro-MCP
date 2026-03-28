@@ -16,19 +16,37 @@
       "get": {
         "operationId": "listBoards",
         "summary": "List Miro boards",
-        "description": "Returns a paginated list of Miro boards accessible to the configured token. Max 50 boards per page.",
+        "description": "Returns a paginated list of Miro boards accessible to the authenticated user. By default returns 20 most recently modified boards.",
         "parameters": [
           {
             "name": "limit",
             "in": "query",
-            "schema": { "type": "integer", "default": 50, "maximum": 50 },
-            "description": "Number of boards to return (max 50)"
+            "schema": { "type": "integer", "default": 20, "maximum": 50 },
+            "description": "Number of boards to return (max 50, default 20)"
           },
           {
             "name": "offset",
             "in": "query",
             "schema": { "type": "integer", "default": 0 },
             "description": "Offset for pagination"
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["default", "last_modified", "last_opened", "last_created", "alphabetically"], "default": "last_modified" },
+            "description": "Sort order (default: last_modified)"
+          },
+          {
+            "name": "query",
+            "in": "query",
+            "schema": { "type": "string", "maxLength": 500 },
+            "description": "Search boards by name"
+          },
+          {
+            "name": "scope",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["mine", "all"], "default": "mine" },
+            "description": "Board scope: 'mine' = only my boards (default), 'all' = all accessible boards"
           }
         ],
         "responses": {
