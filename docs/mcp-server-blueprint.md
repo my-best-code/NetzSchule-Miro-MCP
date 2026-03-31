@@ -8,20 +8,33 @@
 
 ```
 src/
-├── ApiClient.ts          # Общий API-клиент (fetch, Bearer token)
-├── schemas.ts            # Zod-схемы (shared между MCP и REST)
-├── transforms.ts         # Трансформации ввода → формат API
-├── index.ts              # Entry point: stdio (локальная разработка)
+├── ApiClient.ts              # Общий API-клиент (fetch, Bearer token)
+├── schemas.ts                # Zod-схемы (shared между MCP и REST)
+├── transforms.ts             # Трансформации ввода → формат API
+├── index.ts                  # Entry point: stdio (локальная разработка)
 ├── mcp/
-│   ├── lambda.ts         # Entry point: MCP Lambda (Streamable HTTP + OAuth proxy)
-│   └── registerTools.ts  # Регистрация MCP tools (transport-agnostic)
+│   ├── lambda.ts             # Entry point: MCP Lambda (Streamable HTTP + OAuth proxy)
+│   ├── registerTools.ts      # Оркестратор: ресурсы, промпты + цикл регистрации tools
+│   └── tools/                # Один файл = один MCP tool
+│       ├── types.ts          # ToolContext, RegisterTool тип
+│       ├── listItems.ts
+│       ├── createItem.ts
+│       └── ...
 └── rest/
-    ├── lambda.ts         # Entry point: REST Lambda
-    ├── router.ts         # Pattern-based HTTP router
-    └── handler.ts        # REST handlers (JSON responses)
-openapi.json              # OpenAPI 3.1 spec для ChatGPT Actions
-template.yaml             # AWS SAM (API Gateway + 2 Lambda)
+    ├── lambda.ts             # Entry point: REST Lambda
+    ├── router.ts             # Pattern-based HTTP router
+    └── handler.ts            # REST handlers (JSON responses)
+openapi.json                  # OpenAPI 3.1 spec для ChatGPT Actions
+template.yaml                 # AWS SAM (API Gateway + 2 Lambda)
 ```
+
+### Принцип: один файл = один инструмент
+
+Каждый MCP tool живёт в отдельном файле в `src/mcp/tools/`. Это даёт:
+- **Навигация** — найти нужный инструмент = открыть файл с его именем
+- **Изоляция** — изменение одного инструмента не затрагивает остальные
+- **Масштабирование** — добавление нового инструмента = новый файл + 2 строки в оркестраторе
+- **Онбординг** — новый разработчик понимает паттерн за минуту, глядя на любой файл
 
 ---
 
@@ -163,36 +176,98 @@ export const handler = async (event: APIGatewayProxyEventV2) => {
 };
 ```
 
-### Tool registration (transport-agnostic)
+### Tool registration (transport-agnostic, один файл = один инструмент)
 
 Эта же функция вызывается из stdio entry point для локальной разработки.
 
+#### Типы (`src/mcp/tools/types.ts`)
+
 ```typescript
-export function registerTools(server: McpServer, client: ApiClient) {
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { ApiClient } from '../../ApiClient.js';
+
+export interface ToolContext {
+  client: ApiClient;
+  // Добавляй сюда общие зависимости: boardFilter, config, etc.
+}
+
+export type RegisterTool = (server: McpServer, ctx: ToolContext) => void;
+```
+
+#### Файл инструмента (`src/mcp/tools/listItems.ts`)
+
+Каждый инструмент — самодостаточный файл: импортирует свои схемы, экспортирует `RegisterTool`.
+
+```typescript
+import { z } from 'zod';
+import type { RegisterTool } from './types.js';
+
+export const registerListItems: RegisterTool = (server, ctx) => {
   server.registerTool(
-    "list_items",
+    'list_items',
     {
-      description: "List items (paginated). Returns 20 most recent by default.",
+      description: 'List items (paginated). Returns 20 most recent by default.',
       inputSchema: {
         limit: z.number().int().min(1).max(50).default(20),
         offset: z.number().int().min(0).default(0),
       },
     },
     async ({ limit, offset }) => {
-      const result = await client.listItems(limit, offset);
+      const result = await ctx.client.listItems(limit, offset);
       return {
         content: [
-          { type: "text", text: `Showing ${result.data.length} of ${result.total}` },
+          { type: 'text', text: `Showing ${result.data.length} of ${result.total}` },
           ...result.data.map(item => ({
-            type: "text" as const,
+            type: 'text' as const,
             text: `ID: ${item.id}, Name: ${item.name}`,
           })),
         ],
       };
-    }
+    },
   );
+};
+```
+
+#### Оркестратор (`src/mcp/registerTools.ts`)
+
+Тонкий файл: импортирует все инструменты, регистрирует в цикле. Ресурсы и промпты остаются здесь.
+
+```typescript
+import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import type { ApiClient } from '../ApiClient.js';
+import { registerCreateItem } from './tools/createItem.js';
+import { registerListItems } from './tools/listItems.js';
+import type { RegisterTool } from './tools/types.js';
+
+const tools: RegisterTool[] = [
+  registerListItems,
+  registerCreateItem,
+  // ← добавляй новые инструменты сюда
+];
+
+export function registerMcpTools(
+  server: McpServer,
+  client: ApiClient,
+): void {
+  // --- Resources ---
+  // server.registerResource(...);
+
+  // --- Tools ---
+  const ctx = { client };
+  for (const register of tools) {
+    register(server, ctx);
+  }
+
+  // --- Prompts ---
+  // server.registerPrompt(...);
 }
 ```
+
+#### Добавление нового инструмента
+
+1. Создай файл `src/mcp/tools/myNewTool.ts`, экспортируй `registerMyNewTool: RegisterTool`
+2. В `registerTools.ts`: добавь `import` и строку в массив `tools`
+3. Готово — инструмент доступен через stdio и Lambda
 
 ### Helpers: API Gateway ↔ Web Request
 
@@ -493,5 +568,8 @@ Resources:
 | Base64 decode: проверять `isBase64Encoded` | API Gateway V2 может кодировать body |
 | MCP tools → text content, REST → JSON | Каждый клиент лучше работает со своим форматом |
 | `registerTools()` в отдельном файле | Один код для stdio + Lambda |
+| Один файл = один tool в `mcp/tools/` | Навигация, изоляция, масштабирование |
+| `ToolContext` для зависимостей | Инструменты не знают про транспорт, только про API client |
+| Массив `tools: RegisterTool[]` в оркестраторе | Добавление tool = 1 файл + 2 строки |
 | Два Lambda, один API Gateway | Разные deps, env vars, масштабирование |
 | `ReservedConcurrentExecutions` | Защита от runaway costs |
