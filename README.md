@@ -22,6 +22,38 @@ ChatGPT / GPT   →  REST API                 →  MiroClient  →  Miro API   (
 
 All three paths share the same `MiroClient` business logic — no duplication.
 
+### Project Structure
+
+```
+src/
+├── MiroClient.ts              # Miro API client (fetch-based, Bearer token auth)
+├── MiroClient.test.ts         # Tests (Vitest)
+├── schemas.ts                 # Shared Zod validation schemas
+├── transforms.ts              # Data transformations (sticky notes, bulk items, policies)
+├── index.ts                   # Stdio entry point (CLI)
+├── mcp/
+│   ├── registerTools.ts       # MCP tool/resource/prompt registration orchestrator
+│   ├── lambda.ts              # AWS Lambda: Streamable HTTP + OAuth proxy
+│   ├── md.d.ts                # TypeScript declaration for .md imports
+│   └── tools/                 # One file per MCP tool
+│       ├── types.ts           # ToolContext, RegisterTool type
+│       ├── listBoards.ts
+│       ├── createStickyNote.ts
+│       ├── bulkCreateItems.ts
+│       ├── getFrames.ts
+│       ├── getItemsInFrame.ts
+│       ├── createShape.ts
+│       ├── getBoardAccess.ts
+│       ├── updateBoardSharing.ts
+│       └── getBoardShareLink.ts
+└── rest/
+    ├── lambda.ts              # AWS Lambda: REST API entry point
+    ├── handler.ts             # Request dispatch & JSON responses
+    └── router.ts              # HTTP pattern matching
+```
+
+Each MCP tool lives in its own file under `src/mcp/tools/`, making the codebase easy to navigate and extend.
+
 The remote MCP server includes a full **OAuth proxy**: Miro Client ID and Secret are stored server-side in AWS, so end users only need the MCP URL to connect. The OAuth flow (authorization, token exchange) is handled transparently between Claude Desktop, the Lambda, and Miro.
 
 ## Features
@@ -435,6 +467,52 @@ For development with auto-rebuild:
 ```bash
 npm run watch
 ```
+
+### Adding a New MCP Tool
+
+Each tool is a self-contained file in `src/mcp/tools/`. To add a new one:
+
+**1. Create the tool file** — e.g. `src/mcp/tools/deleteBoard.ts`:
+
+```typescript
+import { z } from 'zod';
+import type { RegisterTool } from './types.js';
+
+export const registerDeleteBoard: RegisterTool = (server, ctx) => {
+  server.registerTool(
+    'delete_board',
+    {
+      description: 'Delete a Miro board',
+      inputSchema: {
+        boardId: z.string().describe('ID of the board to delete'),
+      },
+    },
+    async ({ boardId }) => {
+      // call ctx.miroClient methods here
+      return {
+        content: [{ type: 'text', text: `Deleted board ${boardId}` }],
+      };
+    },
+  );
+};
+```
+
+The `ctx` object provides `miroClient` (Miro API client) and `boardFilter` (current board filtering config).
+
+**2. Register it** — add two lines to `src/mcp/registerTools.ts`:
+
+```typescript
+import { registerDeleteBoard } from './tools/deleteBoard.js';
+
+const tools: RegisterTool[] = [
+  // ...existing tools
+  registerDeleteBoard,  // ← add here
+];
+```
+
+That's it. The tool is now available via MCP stdio and the remote Lambda.
+
+If the tool needs a new API method, add it to `MiroClient.ts`. If it needs shared validation, add the schema to `schemas.ts`.
 
 ### Debugging
 

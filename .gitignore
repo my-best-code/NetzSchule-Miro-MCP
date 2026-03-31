@@ -6,3 +6,4 @@ dist/
 .env*
 prompts/ref/miro-spec.json
 .claude/
+miro-another-project/*
