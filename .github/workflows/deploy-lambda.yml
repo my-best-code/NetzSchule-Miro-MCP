@@ -2,6 +2,15 @@ name: Deploy REST API
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        default: staging
+        options:
+          - staging
+          - prod
 
 permissions:
   id-token: write
@@ -10,6 +19,10 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      STACK_NAME: ${{ inputs.environment == 'prod' && 'miro-mcp-rest-api' || 'miro-mcp-rest-api-staging' }}
+      RESERVED_CONCURRENCY: ${{ inputs.environment == 'prod' && '50' || '5' }}
     steps:
       - uses: actions/checkout@v6
 
@@ -33,19 +46,19 @@ jobs:
       - name: Clean up failed stack if in ROLLBACK_COMPLETE
         run: |
           STATUS=$(aws cloudformation describe-stacks \
-            --stack-name miro-mcp-rest-api \
+            --stack-name "$STACK_NAME" \
             --query "Stacks[0].StackStatus" \
             --output text 2>/dev/null || echo "NOT_FOUND")
           if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
             echo "Stack is in ROLLBACK_COMPLETE — deleting before redeploy..."
-            aws cloudformation delete-stack --stack-name miro-mcp-rest-api
-            aws cloudformation wait stack-delete-complete --stack-name miro-mcp-rest-api
+            aws cloudformation delete-stack --stack-name "$STACK_NAME"
+            aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"
             echo "Stack deleted."
           fi
 
       - run: |
           sam deploy \
-            --stack-name miro-mcp-rest-api \
+            --stack-name "$STACK_NAME" \
             --s3-bucket ${{ secrets.SAM_BUCKET }} \
             --capabilities CAPABILITY_IAM \
             --no-confirm-changeset \
@@ -53,12 +66,13 @@ jobs:
             --parameter-overrides \
               MiroTeamId=${{ secrets.MIRO_TEAM_ID }} \
               MiroClientId=${{ secrets.MCP_MIRO_CLIENT_ID }} \
-              MiroClientSecret=${{ secrets.MCP_MIRO_CLIENT_SECRET }}
+              MiroClientSecret=${{ secrets.MCP_MIRO_CLIENT_SECRET }} \
+              ReservedConcurrency=$RESERVED_CONCURRENCY
 
       - name: Smoke test
         run: |
           API_URL=$(aws cloudformation describe-stacks \
-            --stack-name miro-mcp-rest-api \
+            --stack-name "$STACK_NAME" \
             --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" \
             --output text)
           echo "Testing $API_URL/health ..."

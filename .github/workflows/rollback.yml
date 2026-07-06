@@ -3,6 +3,14 @@ name: Rollback Lambda
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        type: choice
+        default: prod
+        options:
+          - staging
+          - prod
       target:
         description: 'Rollback target'
         required: true
@@ -23,6 +31,9 @@ permissions:
 jobs:
   rollback:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      STACK_NAME: ${{ inputs.environment == 'prod' && 'miro-mcp-rest-api' || 'miro-mcp-rest-api-staging' }}
     steps:
       - uses: aws-actions/configure-aws-credentials@v6
         with:
@@ -32,12 +43,12 @@ jobs:
       - name: Rollback live alias
         run: |
           REST_FN=$(aws cloudformation describe-stack-resource \
-            --stack-name miro-mcp-rest-api \
+            --stack-name "$STACK_NAME" \
             --logical-resource-id MiroRestFunction \
             --query "StackResourceDetail.PhysicalResourceId" \
             --output text)
           MCP_FN=$(aws cloudformation describe-stack-resource \
-            --stack-name miro-mcp-rest-api \
+            --stack-name "$STACK_NAME" \
             --logical-resource-id MiroMcpFunction \
             --query "StackResourceDetail.PhysicalResourceId" \
             --output text)

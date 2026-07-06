@@ -9,8 +9,8 @@ CI/CD pipeline: GitHub Actions + AWS SAM + Lambda versioning/rollback.
 ```
 git push (main)  ──→  CI (test, lint, build)
 git push --tags  ──→  Publish npm + GitHub Packages
-workflow_dispatch ──→  Deploy Lambda (SAM)
-workflow_dispatch ──→  Mark Stable / Rollback
+workflow_dispatch ──→  Deploy Lambda (SAM) → staging | prod
+workflow_dispatch ──→  Mark Stable / Rollback (per environment)
 schedule (weekly) ──→  Security (npm audit + CodeQL)
 dependabot        ──→  Dependency updates (auto-PR)
 ```
@@ -51,7 +51,36 @@ jobs:
 
 ---
 
-## 2. Deploy Lambda: SAM + smoke test
+## 2. Deploy Lambda: SAM + smoke test + staging/prod
+
+Один шаблон — два стека. Staging — отдельный CloudFormation-стек (`<stack>-staging`),
+выбирается через input `environment` при запуске workflow (default: `staging`).
+Alarm'ы не конфликтуют, т.к. именуются через `${AWS::StackName}`.
+
+```yaml
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        type: choice
+        default: staging
+        options: [staging, prod]
+
+jobs:
+  deploy:
+    environment: ${{ inputs.environment }}   # GitHub Environment: per-env secrets + protection rules
+    env:
+      STACK_NAME: ${{ inputs.environment == 'prod' && 'my-mcp-stack' || 'my-mcp-stack-staging' }}
+      RESERVED_CONCURRENCY: ${{ inputs.environment == 'prod' && '50' || '5' }}
+```
+
+**GitHub Environments:** секреты уровня environment переопределяют репозиторные —
+staging может использовать отдельное Miro App. На `prod` можно повесить
+required reviewers (ручное подтверждение деплоя). Если environment-секретов нет,
+используются репозиторные — работает из коробки.
+
+**Reserved concurrency** — параметр шаблона (`ReservedConcurrency`), для staging
+задаётся низким (5), чтобы два стека не выели account concurrency limit.
 
 ```yaml
 # .github/workflows/deploy-lambda.yml
@@ -429,7 +458,8 @@ Resources:
 ```
 1. Разработка → push → CI (auto)
 2. Готово к релизу → npm version patch → push --tags → Publish (auto)
-3. Деплой → workflow_dispatch Deploy → smoke test (auto)
-4. Проверили в production → workflow_dispatch Mark Stable
-5. Проблемы → workflow_dispatch Rollback → мгновенный откат
+3. Деплой → workflow_dispatch Deploy [staging] → smoke test (auto)
+4. Проверили staging → workflow_dispatch Deploy [prod] → smoke test (auto)
+5. Проверили в production → workflow_dispatch Mark Stable [prod]
+6. Проблемы → workflow_dispatch Rollback [prod] → мгновенный откат
 ```

@@ -247,7 +247,16 @@ The project includes a GitHub Actions workflow (`deploy-lambda.yml`) for automat
 | `MCP_MIRO_CLIENT_ID` | Miro App Client ID (for OAuth proxy) |
 | `MCP_MIRO_CLIENT_SECRET` | Miro App Client Secret (for OAuth proxy) |
 
-Trigger the workflow manually via GitHub Actions → "Deploy REST API" → Run workflow.
+Trigger the workflow manually via GitHub Actions → "Deploy REST API" → Run workflow, and pick the target environment:
+
+- **staging** (default) — deploys to a separate `miro-mcp-rest-api-staging` stack with reduced concurrency limits. Use it to verify changes before they reach real users.
+- **prod** — deploys to the `miro-mcp-rest-api` stack.
+
+Each environment maps to a [GitHub Environment](https://docs.github.com/en/actions/deployment/targeting-different-environments/using-environments-for-deployment) of the same name, so you can override secrets per environment (e.g. a separate Miro App for staging) and add protection rules (e.g. required approval for `prod`). If no environment-level secrets are configured, repository-level secrets are used for both.
+
+The "Mark Current Version as Stable" and "Rollback Lambda" workflows accept the same environment choice (defaulting to `prod`).
+
+> **Note:** the staging stack has its own API Gateway URL. If you want to test the MCP OAuth flow on staging, add the staging callback URL to your Miro App's Redirect URIs (or use a dedicated staging Miro App).
 
 ---
 

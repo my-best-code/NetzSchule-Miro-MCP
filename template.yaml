@@ -26,6 +26,10 @@ Parameters:
     Default: ""
     NoEcho: true
     Description: Miro OAuth App Client Secret (for MCP OAuth proxy)
+  ReservedConcurrency:
+    Type: Number
+    Default: 50
+    Description: Reserved concurrent executions per function (use a low value for staging)
 
 Conditions:
   HasAlarmEmail: !Not [!Equals [!Ref AlarmEmail, ""]]
@@ -55,7 +59,7 @@ Resources:
       Handler: lambda.handler
       CodeUri: dist/
       AutoPublishAlias: live
-      ReservedConcurrentExecutions: 50
+      ReservedConcurrentExecutions: !Ref ReservedConcurrency
       Environment:
         Variables:
           MIRO_TEAM_ID: !Ref MiroTeamId
@@ -127,7 +131,7 @@ Resources:
       Handler: mcp-lambda.handler
       CodeUri: dist/
       AutoPublishAlias: live
-      ReservedConcurrentExecutions: 50
+      ReservedConcurrentExecutions: !Ref ReservedConcurrency
       Environment:
         Variables:
           MIRO_CLIENT_ID: !Ref MiroClientId
