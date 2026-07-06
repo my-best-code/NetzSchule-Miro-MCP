@@ -129,6 +129,19 @@ function parseRequestBody(event: APIGatewayProxyEventV2): string {
     : event.body;
 }
 
+// Mask credential values in form-encoded or JSON bodies before logging
+function redactSecrets(body: string): string {
+  return body
+    .replace(
+      /(client_secret|code|refresh_token|access_token)=[^&\s]+/g,
+      '$1=***',
+    )
+    .replace(
+      /("(?:client_secret|code|refresh_token|access_token)"\s*:\s*")[^"]+(")/g,
+      '$1***$2',
+    );
+}
+
 // --- Handler ---
 
 export const handler = async (
@@ -164,7 +177,7 @@ export const handler = async (
       token_endpoint: `${baseUrl}/oauth/token`,
       registration_endpoint: `${baseUrl}/oauth/register`,
       response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code'],
+      grant_types_supported: ['authorization_code', 'refresh_token'],
       scopes_supported: [],
       token_endpoint_auth_methods_supported: [
         'client_secret_post',
@@ -197,7 +210,7 @@ export const handler = async (
       client_id: clientId,
       client_name: (registrationRequest.client_name as string) || 'MCP Client',
       redirect_uris: registrationRequest.redirect_uris || [],
-      grant_types: ['authorization_code'],
+      grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
       token_endpoint_auth_method: 'client_secret_post',
     };
@@ -262,21 +275,25 @@ export const handler = async (
     }
 
     const rawBody = parseRequestBody(event);
-    console.log('[mcp] /oauth/token request body:', rawBody);
+    console.log('[mcp] /oauth/token request body:', redactSecrets(rawBody));
 
     // Parse the incoming form-encoded body
     const params = new URLSearchParams(rawBody);
+    const grantType = params.get('grant_type');
 
-    // Inject our server-side Miro credentials
+    // Inject our server-side Miro credentials.
+    // Both authorization_code and refresh_token grants are passed through
+    // to Miro as-is — refresh_token allows MCP clients to renew expiring
+    // tokens without user interaction (requires "Expire user authorization
+    // token" enabled in the Miro App settings).
     params.set('client_id', MIRO_CLIENT_ID);
     params.set('client_secret', MIRO_CLIENT_SECRET);
 
     const miroTokenUrl = 'https://api.miro.com/v1/oauth/token';
     const forwardBody = params.toString();
-    console.log('[mcp] forwarding to Miro token endpoint:', miroTokenUrl);
     console.log(
-      '[mcp] forward body (redacted secret):',
-      forwardBody.replace(/client_secret=[^&]+/, 'client_secret=***'),
+      `[mcp] forwarding to Miro token endpoint (grant_type=${grantType}):`,
+      miroTokenUrl,
     );
 
     try {
@@ -288,16 +305,24 @@ export const handler = async (
 
       const miroResponseBody = await miroResponse.text();
       console.log('[mcp] Miro token response status:', miroResponse.status);
-      console.log('[mcp] Miro token response body:', miroResponseBody);
+      console.log(
+        '[mcp] Miro token response body:',
+        redactSecrets(miroResponseBody),
+      );
 
-      // Fix Miro's expires_in: 0 — Claude interprets 0 as "already expired"
-      // Miro tokens are long-lived, so we set a reasonable TTL
+      // Fix Miro's expires_in: 0 — Claude interprets 0 as "already expired".
+      // Only applies to non-expiring Miro tokens (no refresh_token issued);
+      // when a refresh_token is present, expires_in is real and must be kept
+      // so the client refreshes on schedule.
       let fixedBody = miroResponseBody;
       if (miroResponse.ok) {
         try {
           const tokenData = JSON.parse(miroResponseBody);
-          if (tokenData.expires_in === 0 || !tokenData.expires_in) {
-            tokenData.expires_in = 31536000; // 1 year — Miro tokens are long-lived
+          if (
+            (tokenData.expires_in === 0 || !tokenData.expires_in) &&
+            !tokenData.refresh_token
+          ) {
+            tokenData.expires_in = 31536000; // 1 year — non-expiring Miro tokens are long-lived
             console.log('[mcp] fixed expires_in: 0 → 31536000');
           }
           fixedBody = JSON.stringify(tokenData);

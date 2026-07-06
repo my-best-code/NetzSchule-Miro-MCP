@@ -205,6 +205,7 @@ To deploy to your own AWS account:
    - Set permissions: `boards:read`, `boards:write`
    - Add the Claude Desktop redirect URI to your Miro App's **Redirect URIs**
    - Note the **Client ID** and **Client Secret**
+   - **Recommended:** enable **Expire user authorization token**. Miro then issues short-lived access tokens with refresh tokens, and the OAuth proxy supports the `refresh_token` grant — clients renew tokens automatically without user interaction. This mitigates token revocation when the same Miro App is authorized from multiple clients (e.g. Claude Desktop and ChatGPT): Miro issues one access token per user+app, so a second authorization revokes the first token; with refresh tokens the first client recovers without a re-login. Without this setting, tokens are long-lived but a revoked client must re-authenticate manually.
 3. **S3 bucket** for SAM deployment artifacts
 
 #### Deploy
