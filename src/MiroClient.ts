@@ -194,6 +194,9 @@ export class MiroClient {
       allBoards.push(...response.data);
 
       if (allBoards.length >= response.total) break;
+      // Guard against a stalled pagination loop if the API returns an
+      // empty page before `total` is reached
+      if (!response.size || response.data.length === 0) break;
       offset += response.size;
     }
 

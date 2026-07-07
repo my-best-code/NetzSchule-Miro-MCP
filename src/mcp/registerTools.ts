@@ -37,10 +37,17 @@ export function registerMcpTools(
   server.registerResource(
     'board',
     new ResourceTemplate('miro://board/{boardId}', {
+      // Single page only: clients call resources/list on every connect, and
+      // fetching the full board collection can exceed the 30s Lambda timeout.
+      // Full listing with pagination is available via the list_boards tool.
       list: async () => {
-        const boards = await miroClient.getBoards(boardFilter);
+        const response = await miroClient.getBoardsPage(
+          { ...boardFilter, sort: 'last_modified' },
+          50,
+          0,
+        );
         return {
-          resources: boards.map((board) => ({
+          resources: response.data.map((board) => ({
             uri: `miro://board/${board.id}`,
             mimeType: 'application/json',
             name: board.name,
